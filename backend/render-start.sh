@@ -2,9 +2,15 @@
 echo "🌐 Starting Mobile Mechanic Backend (Render One-Command Deploy)"
 
 # --------------------
-# 1️⃣ Move to backend folder
+# 1️⃣ Node.js version check
 # --------------------
-cd backend || { echo "❌ Backend folder not found"; exit 1; }
+required_node_version="22"
+current_node_version=$(node -v | cut -d. -f1 | tr -d 'v')
+if [ "$current_node_version" -ne "$required_node_version" ]; then
+  echo "❌ Node.js version mismatch: $current_node_version detected, $required_node_version required."
+  exit 1
+fi
+echo "✅ Node.js version $current_node_version OK"
 
 # --------------------
 # 2️⃣ Install dependencies
@@ -12,27 +18,33 @@ cd backend || { echo "❌ Backend folder not found"; exit 1; }
 npm install
 
 # --------------------
-# 3️⃣ Ensure .env exists
+# 3️⃣ Check .env
 # --------------------
 if [ ! -f .env ]; then
-  echo "⚠️ .env not found, creating placeholders..."
-  cat <<EOL > .env
-PORT=10000
-MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority
-JWT_SECRET=your_jwt_secret_here
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USER=youremail@gmail.com
-EMAIL_PASS=your_email_app_password
-ALERT_EMAIL_RECIPIENT=alerts@yourdomain.com
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/your/webhook/url
-REPORT_TOKEN=supersecrettoken123
-EOL
-  echo "✅ .env created with placeholders."
+  echo "⚠️ .env not found. Please create it with proper environment variables."
+  exit 1
 fi
 
 # --------------------
-# 4️⃣ MongoDB check
+# 4️⃣ Check critical packages
+# --------------------
+critical_packages=(nodemailer node-fetch)
+for pkg in "${critical_packages[@]}"; do
+  if ! npm list "$pkg" >/dev/null 2>&1; then
+    echo "⚠️ $pkg not found, installing..."
+    npm install "$pkg"
+  fi
+done
+
+# --------------------
+# 5️⃣ Create logs folder
+# --------------------
+mkdir -p logs
+echo "$(date) - Backend deploy started" >> logs/startup.log
+echo "✅ Logs folder ready"
+
+# --------------------
+# 6️⃣ MongoDB connection check
 # --------------------
 echo "🧪 Testing MongoDB connection..."
 node -e "
@@ -48,7 +60,23 @@ connectDB()
 "
 
 # --------------------
-# 5️⃣ Start server on Render port
+# 7️⃣ Test alerts
+# --------------------
+echo "📣 Testing alert system (email + Slack)..."
+node -e "
+import dotenv from 'dotenv';
+import { sendEmailAlert } from './utils/alertMailer.js';
+import { sendSlackAlert } from './utils/alertSlack.js';
+dotenv.config();
+
+(async () => {
+  try { await sendEmailAlert('Backend Startup Test', 'Email alert test.'); console.log('✅ Email test sent'); } catch(err){console.error('❌ Email test failed', err.message);}
+  try { await sendSlackAlert('Backend Startup Test: Slack message'); console.log('✅ Slack test sent'); } catch(err){console.error('❌ Slack test failed', err.message);}
+})();
+"
+
+# --------------------
+# 8️⃣ Start backend server (Render-compatible)
 # --------------------
 echo "🌐 Launching backend server..."
 node server.js
