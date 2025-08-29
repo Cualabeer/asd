@@ -2,11 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 
-import connectDB from "./config/db.js"; // Mongo connection
-import { errorHandler, notFound } from "./middleware/errorMiddleware.js"; // error middleware
-import { logInitialization, getLastInitReport } from "./utils/initLogger.js";
-
-// Routes
+import connectDB from "./config/db.js";
+import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
 import bookingRoutes from "./routes/bookings.js";
@@ -22,67 +19,19 @@ app.use(cors());
 app.use(express.json());
 
 // --------------------
-// API Routes
+// Routes
 // --------------------
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/bookings", bookingRoutes);
 
 // --------------------
-// Middleware to check API key
+// Root Route
 // --------------------
-const checkToken = (req, res, next) => {
-  const token = req.query.token;
-  if (token !== process.env.REPORT_TOKEN) {
-    return res.status(403).send("❌ Unauthorized: Invalid token");
-  }
-  next();
-};
+app.get("/", (req, res) => res.send("Backend API is running ✅"));
 
 // --------------------
-// Root route with summary + last report timestamp
-// --------------------
-app.get("/", checkToken, async (req, res) => {
-  const report = getLastInitReport();
-  const memoryUsage = process.memoryUsage();
-
-  const summary = {
-    db: report?.db?.status || "Unknown",
-    uptime: `${Math.floor(process.uptime())}s`,
-    memory: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`,
-    lastReport: report?.timestamp || "No report yet"
-  };
-
-  res.send(`
-    <h1>Backend API is running ✅</h1>
-    <h3>System Summary</h3>
-    <ul>
-      <li>Database: ${summary.db}</li>
-      <li>Uptime: ${summary.uptime}</li>
-      <li>Memory: ${summary.memory}</li>
-      <li>Last Report: ${summary.lastReport}</li>
-    </ul>
-    <p>For full details visit /report (use your token manually)</p>
-  `);
-});
-
-// --------------------
-// Full JSON report route
-// --------------------
-app.get("/report", checkToken, (req, res) => {
-  const report = getLastInitReport();
-  if (!report) return res.status(404).json({ message: "No report available yet" });
-
-  const response = {
-    lastReport: report.timestamp,
-    report
-  };
-
-  res.json(response);
-});
-
-// --------------------
-// Error handling middleware
+// Error handling
 // --------------------
 app.use(notFound);
 app.use(errorHandler);
@@ -96,22 +45,18 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    // First-time initialization report
-    await logInitialization();
+    // Bind to 0.0.0.0 for Render
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
 
-    // Start server
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
-    // Periodic reporting every 5 minutes
-    const intervalMs = 5 * 60 * 1000;
-    setInterval(async () => {
-      await logInitialization(true); // 'true' = periodic report
-    }, intervalMs);
+    // Run initialization report asynchronously
+    import("./utils/initLogger.js").then(({ logInitialization }) => logInitialization());
 
   } catch (err) {
     console.error("❌ Server failed to start:", err.message);
 
-    // Send critical alerts
+    // Send alerts asynchronously
     import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
       sendEmailAlert("Backend Alert: Startup Failure", err.message)
     );
