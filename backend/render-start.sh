@@ -149,7 +149,20 @@ logInitialization();
 "
 
 # --------------------
-# 1️⃣1️⃣ Start backend server
+# 1️⃣1️⃣ Start backend server with Render port detection
 # --------------------
 echo "🌐 Starting backend server..."
+
+export PORT=${PORT:-5000}
+
+# Temporary listener to open port immediately for Render
+node -e "
+import http from 'http';
+const PORT = process.env.PORT;
+http.createServer((req, res) => res.end('OK')).listen(PORT, () => {
+  console.log('✅ Temporary listener on port', PORT, 'to satisfy Render');
+});
+" &
+
+# Start the real backend server
 node server.js
