@@ -1,90 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pro Dashboard</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f6f8; }
-    header { background: #2c3e50; color: white; padding: 1rem; text-align: center; }
-    main { padding: 1rem; }
-    .card { background: white; padding: 1rem; margin: 1rem 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
-    h2 { margin-top: 0; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 0.5rem; border: 1px solid #ddd; text-align: left; }
-    th { background: #ecf0f1; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mobile Mechanic Pro Dashboard</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f4f6f8; margin:0; }
+  header { background: #1f2937; color: #fff; padding: 1rem; text-align: center; }
+  main { padding: 1rem; display: flex; flex-wrap: wrap; gap: 1rem; }
+  .card { background: #fff; padding: 1rem; border-radius: 8px; flex: 1 1 200px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+  h2 { margin-top: 0; font-size: 1.2rem; }
+  .status { font-weight: bold; color: green; }
+</style>
 </head>
 <body>
-  <header>
-    <h1>Mobile Mechanic Pro Dashboard</h1>
-  </header>
-  <main>
-    <div class="grid">
-      <div class="card">
-        <h2>Users</h2>
-        <ul id="userList"></ul>
-      </div>
-      <div class="card">
-        <h2>Bookings</h2>
-        <table id="bookingTable">
-          <thead>
-            <tr><th>ID</th><th>Customer</th><th>Service</th><th>Status</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="card">
-        <h2>System Health</h2>
-        <ul>
-          <li id="dbStatus">DB: Loading...</li>
-          <li id="alertsStatus">Alerts: Loading...</li>
-        </ul>
-      </div>
-    </div>
-  </main>
-  <script>
-    async function fetchUsers() {
-      const res = await fetch('/api/users');
-      const users = await res.json();
-      const list = document.getElementById('userList');
-      list.innerHTML = users.map(u => `<li>${u.name} (${u.email})</li>`).join('');
-    }
+<header>
+  <h1>Mobile Mechanic Pro Dashboard</h1>
+</header>
+<main>
+  <div class="card">
+    <h2>Server Status</h2>
+    <p>Status: <span class="status" id="server-status">Loading...</span></p>
+    <p>Port: <span id="server-port"></span></p>
+  </div>
+  <div class="card">
+    <h2>MongoDB</h2>
+    <p>Status: <span class="status" id="mongo-status">Loading...</span></p>
+    <p>Collections: <span id="mongo-collections"></span></p>
+  </div>
+  <div class="card">
+    <h2>Logs</h2>
+    <pre id="logs" style="height:150px;overflow:auto;background:#eee;padding:0.5rem;"></pre>
+  </div>
+</main>
+<script>
+async function fetchStatus() {
+  try {
+    const res = await fetch("/api/users"); // example endpoint to test API
+    document.getElementById("server-status").textContent = res.ok ? "Online ✅" : "Offline ❌";
+    document.getElementById("server-port").textContent = location.port || 5000;
+  } catch { document.getElementById("server-status").textContent = "Offline ❌"; }
 
-    async function fetchBookings() {
-      const res = await fetch('/api/bookings');
-      const bookings = await res.json();
-      const tbody = document.querySelector('#bookingTable tbody');
-      tbody.innerHTML = bookings.map(b =>
-        `<tr><td>${b._id}</td><td>${b.customerName}</td><td>${b.service}</td><td>${b.status}</td></tr>`
-      ).join('');
-    }
+  try {
+    const res = await fetch("/api/bookings"); // example endpoint to check MongoDB
+    const data = await res.json();
+    document.getElementById("mongo-status").textContent = res.ok ? "Connected ✅" : "Disconnected ❌";
+    document.getElementById("mongo-collections").textContent = Object.keys(data || {}).join(", ") || "No collections";
+  } catch { document.getElementById("mongo-status").textContent = "Disconnected ❌"; }
 
-    async function fetchHealth() {
-      try {
-        const res = await fetch('/');
-        if(res.ok) {
-          document.getElementById('dbStatus').textContent = 'DB: Connected';
-          document.getElementById('alertsStatus').textContent = 'Alerts: OK';
-        }
-      } catch(e) {
-        document.getElementById('dbStatus').textContent = 'DB: Error';
-        document.getElementById('alertsStatus').textContent = 'Alerts: Error';
-      }
-    }
-
-    // Initial fetch
-    fetchUsers();
-    fetchBookings();
-    fetchHealth();
-
-    // Refresh every 2 minutes
-    setInterval(() => {
-      fetchUsers();
-      fetchBookings();
-      fetchHealth();
-    }, 120000);
-  </script>
+  try {
+    const logsRes = await fetch("/logs/startup.log");
+    const logsText = await logsRes.text();
+    document.getElementById("logs").textContent = logsText;
+  } catch { document.getElementById("logs").textContent = "Unable to load logs"; }
+}
+fetchStatus();
+setInterval(fetchStatus, 5000); // refresh every 5s
+</script>
 </body>
 </html>
