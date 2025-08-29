@@ -140,12 +140,11 @@ dotenv.config();
 "
 
 # --------------------
-# 🔟 Initialization report
+# 🔟 Initialization report using Node logger
 # --------------------
 echo "🧪 Running initialization report..."
 node -e "
-import { logInitialization } from './utils/initLogger.js';
-logInitialization();
+import('./utils/initLogger.js').then(({ logInitialization }) => logInitialization());
 "
 
 # --------------------
