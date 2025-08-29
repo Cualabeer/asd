@@ -47,40 +47,57 @@ if (!allFound) {
 "
 
 # --------------------
-# 2️⃣ Ensure .env exists
+# 2️⃣ Environment Variable Validation
+# --------------------
+echo -e "\033[1;33m🔍 Validating critical environment variables...\033[0m"
+node -e "
+const requiredVars = [
+  'PORT',
+  'MONGO_URI',
+  'JWT_SECRET',
+  'EMAIL_HOST',
+  'EMAIL_PORT',
+  'EMAIL_USER',
+  'EMAIL_PASS',
+  'ALERT_EMAIL_RECIPIENT'
+];
+
+let allSet = true;
+requiredVars.forEach(v => {
+  if (!process.env[v] || process.env[v].trim() === '') {
+    console.error('\033[1;31m❌ Missing environment variable:\033[0m', v);
+    allSet = false;
+  } else {
+    console.log('\033[1;32m✅ Found environment variable:\033[0m', v);
+  }
+});
+
+if (!allSet) {
+  console.error('\033[1;31m❌ One or more critical environment variables are missing. Fix them before starting the backend.\033[0m');
+  process.exit(1);
+} else {
+  console.log('\033[1;32m✅ All critical environment variables are set.\033[0m');
+}
+"
+
+# --------------------
+# 3️⃣ Ensure .env exists (optional if using Render environment)
 # --------------------
 if [ ! -f .env ]; then
   echo -e "\033[1;31m⚠️ .env not found, creating placeholders...\033[0m"
   cat <<EOL > .env
 PORT=5000
-MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority
+MONGO_URI=mongodb+srv://DB_USER:DB_PASSWORD@cluster.mongodb.net/garageApp?retryWrites=true&w=majority
 JWT_SECRET=your_jwt_secret_here
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=youremail@gmail.com
 EMAIL_PASS=your_email_app_password
 ALERT_EMAIL_RECIPIENT=alerts@yourdomain.com
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/your/webhook/url
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
 EOL
   echo -e "\033[1;32m✅ .env created with placeholders.\033[0m"
 fi
-
-# --------------------
-# 3️⃣ Validate Email Environment Variables
-# --------------------
-required_vars=("EMAIL_HOST" "EMAIL_PORT" "EMAIL_USER" "EMAIL_PASS" "ALERT_EMAIL_RECIPIENT")
-for var in "${required_vars[@]}"; do
-  if [ -z "${!var}" ]; then
-    echo -e "\033[1;31m⚠️ Environment variable $var is missing. Filling placeholder...\033[0m"
-    case $var in
-      EMAIL_HOST) echo "EMAIL_HOST=smtp.example.com" >> .env ;;
-      EMAIL_PORT) echo "EMAIL_PORT=587" >> .env ;;
-      EMAIL_USER) echo "EMAIL_USER=youremail@example.com" >> .env ;;
-      EMAIL_PASS) echo "EMAIL_PASS=your_email_password" >> .env ;;
-      ALERT_EMAIL_RECIPIENT) echo "ALERT_EMAIL_RECIPIENT=alerts@example.com" >> .env ;;
-    esac
-  fi
-done
 
 # --------------------
 # 4️⃣ MongoDB connection check
