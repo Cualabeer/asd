@@ -1,21 +1,38 @@
-import express from 'express';
-import { protect } from '../middleware/authMiddleware.js';
-import { authorizeRoles } from '../middleware/roleMiddleware.js';
-import {
-  createBooking,
-  getMyBookings,
-  getAllBookings,
-  updateBooking,
-  deleteBooking
-} from '../controllers/bookingController.js';
+import express from "express";
+import Booking from "../models/Booking.js";
 
 const router = express.Router();
 
-router.post('/', protect, authorizeRoles('customer'), createBooking);
-router.get('/my', protect, authorizeRoles('customer'), getMyBookings);
-router.get('/assigned', protect, authorizeRoles('garage'), getAllBookings);
-router.get('/all', protect, authorizeRoles('admin'), getAllBookings);
-router.put('/:id', protect, authorizeRoles('garage','admin'), updateBooking);
-router.delete('/:id', protect, authorizeRoles('admin'), deleteBooking);
+// Create a booking
+router.post("/", async (req, res) => {
+  try {
+    const booking = new Booking(req.body);
+    await booking.save();
+    res.status(201).json(booking);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all bookings
+router.get("/", async (req, res) => {
+  try {
+    const bookings = await Booking.find().populate("customer", "name email");
+    res.json(bookings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single booking
+router.get("/:id", async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id).populate("customer", "name email");
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+    res.json(booking);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 export default router;
