@@ -3,93 +3,111 @@ import dotenv from "dotenv";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
-import os from "os";
 
 import connectDB from "./config/db.js";
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
-import { logInitialization } from "./utils/initLogger.js";
+import { logInitialization, getLastReports } from "./utils/initLogger.js";
+import User from "./models/userModel.js";
+import Booking from "./models/bookingModel.js";
 
-// Routes
+dotenv.config();
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// --------------------
+// Existing API routes
+// --------------------
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
 import bookingRoutes from "./routes/bookings.js";
 
-dotenv.config();
-const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/bookings", bookingRoutes);
 
 // --------------------
-// Dashboard Routes
+// Dashboard API routes
 // --------------------
-app.get("/api/dashboard/status", (req, res) => {
-  if (req.query.token !== process.env.REPORT_TOKEN)
-    return res.status(403).json({ message: "Forbidden" });
+const DASHBOARD_TOKEN = process.env.REPORT_TOKEN;
 
-  const memoryUsage = process.memoryUsage();
-  const uptime = process.uptime();
-  const cpuLoad = os.loadavg();
+function verifyToken(req, res, next) {
+  const token = req.query.token;
+  if (token !== DASHBOARD_TOKEN) return res.status(403).json({ error: "Forbidden" });
+  next();
+}
 
+app.get("/api/dashboard/users", verifyToken, async (req, res) => {
+  const users = await User.find().sort({ createdAt: -1 }).limit(10);
+  const count = await User.countDocuments();
+  res.json({ count, recent: users });
+});
+
+app.get("/api/dashboard/bookings", verifyToken, async (req, res) => {
+  const bookings = await Booking.find().sort({ createdAt: -1 }).limit(10);
+  const count = await Booking.countDocuments();
+  res.json({ count, recent: bookings });
+});
+
+app.get("/api/dashboard/mongo", verifyToken, async (req, res) => {
+  const db = await connectDB();
+  const stats = await db.connection.db.stats();
+  res.json(stats);
+});
+
+app.get("/api/dashboard/logs", verifyToken, (req, res) => {
+  const logPath = path.join("./logs/startup.log");
+  if (!fs.existsSync(logPath)) return res.send("No logs yet");
+  const logs = fs.readFileSync(logPath, "utf-8").split("\n").slice(-50).join("\n");
+  res.send(logs);
+});
+
+app.get("/api/dashboard/init", verifyToken, async (req, res) => {
+  const reports = await getLastReports(10);
+  res.json(reports);
+});
+
+// Optional: Add email/slack alert logs if you store them
+app.get("/api/dashboard/alerts/email", verifyToken, (req, res) => {
+  // Implement reading last email alerts
+  res.json([]);
+});
+app.get("/api/dashboard/alerts/slack", verifyToken, (req, res) => {
+  // Implement reading last slack alerts
+  res.json([]);
+});
+
+app.get("/api/dashboard/health", verifyToken, (req, res) => {
   res.json({
-    backend: "✅ Running",
-    nodeVersion: process.version,
-    uptime: `${Math.floor(uptime / 60)} min`,
-    memory: `${Math.round(memoryUsage.rss / 1024 / 1024)} MB`,
-    cpuLoad: cpuLoad.map((x) => x.toFixed(2)),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    nodeVersion: process.version
   });
 });
 
-app.get("/api/dashboard/logs", (req, res) => {
-  if (req.query.token !== process.env.REPORT_TOKEN)
-    return res.status(403).send("Forbidden");
-
-  const logPath = path.join(process.cwd(), "logs/startup.log");
-  fs.readFile(logPath, "utf-8", (err, data) => {
-    if (err) return res.status(500).send("Failed to read logs");
-    res.send(data);
-  });
-});
-
-// Serve HTML dashboard
-app.get("/dashboard", (req, res) => {
-  if (req.query.token !== process.env.REPORT_TOKEN) return res.status(403).send("Access Denied");
-  res.sendFile(path.join(process.cwd(), "dashboard.html"));
-});
-
-// Root
+// --------------------
+// Root route
+// --------------------
 app.get("/", (req, res) => res.send("Backend API is running ✅"));
 
+// --------------------
 // Error handling
+// --------------------
 app.use(notFound);
 app.use(errorHandler);
 
+// --------------------
 // Start server
+// --------------------
 const PORT = process.env.PORT || 5000;
+
 const startServer = async () => {
   try {
     await connectDB();
     await logInitialization();
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
-    // Periodic initialization
-    setInterval(async () => {
-      await logInitialization(true);
-    }, 5 * 60 * 1000);
   } catch (err) {
     console.error("❌ Server failed to start:", err.message);
-    import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
-      sendEmailAlert("Backend Alert: Startup Failure", err.message)
-    );
-    import("./utils/alertSlack.js").then(({ sendSlackAlert }) =>
-      sendSlackAlert(`Backend failed to start:\n${err.message}`)
-    );
     process.exit(1);
   }
 };
