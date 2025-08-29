@@ -1,167 +1,78 @@
-import mongoose from "mongoose";
 import User from "../models/User.js";
 import Booking from "../models/Booking.js";
-import chalk from "chalk";
+import { sendEmailAlert } from "./alertMailer.js";
+import { sendSlackAlert } from "./alertSlack.js";
 
-let lastReportState = {
-  users: {},
-  totalUsers: 0,
-  bookings: 0,
-  recentBookingIds: [],
-  importantUsers: [],
+// Console colors
+const colors = {
+  reset: "\x1b[0m",
+  bright: "\x1b[1m",
+  fgRed: "\x1b[31m",
+  fgGreen: "\x1b[32m",
+  fgYellow: "\x1b[33m",
+  fgCyan: "\x1b[36m",
+  fgMagenta: "\x1b[35m",
 };
 
 export const logInitialization = async (isPeriodic = false) => {
-  console.log(chalk.blue.bold(isPeriodic ? "\n⏱️ Periodic Backend Report" : "\n🔹 Full Initialization Report 🔹"));
+  try {
+    const reportType = isPeriodic ? "Periodic" : "Initialization";
+    console.log(`${colors.fgCyan}\n📝 ${reportType} Report Start${colors.reset}`);
 
-  // 1️⃣ MongoDB Status
-  const dbState = mongoose.connection.readyState;
-  const stateText = ["Disconnected", "Connected", "Connecting", "Disconnecting"][dbState];
-  const dbColor = dbState === 1 ? chalk.green : chalk.red;
-  console.log(`\n🗄️ MongoDB Status: ${dbColor(stateText)}`);
-  if (dbState !== 1) console.log(chalk.red.bold("❌ ALERT: MongoDB is not connected!"));
+    // 1️⃣ Users summary
+    const users = await User.find({});
+    const totalUsers = users.length;
+    const rolesCount = users.reduce((acc, user) => {
+      acc[user.role] = (acc[user.role] || 0) + 1;
+      return acc;
+    }, {});
+    console.log(`${colors.fgMagenta}📊 Users Summary:${colors.reset}`);
+    console.table({ Total: totalUsers, ...rolesCount });
 
-  // 2️⃣ Users breakdown
-  const roles = ["customer", "mechanic", "garage", "admin"];
-  const userCounts = {};
-  let totalUsers = 0;
-  for (const role of roles) {
-    const count = await User.countDocuments({ role });
-    userCounts[role] = count;
-    totalUsers += count;
-  }
+    // 2️⃣ Bookings summary
+    const bookings = await Booking.find({});
+    const upcoming = bookings.filter(b => new Date(b.date) >= new Date());
+    console.log(`${colors.fgMagenta}📅 Total Bookings: ${bookings.length}${colors.reset}`);
+    console.log(`${colors.fgMagenta}🔜 Upcoming Bookings: ${upcoming.length}${colors.reset}`);
 
-  if (!isPeriodic || JSON.stringify(userCounts) !== JSON.stringify(lastReportState.users)) {
-    console.log(chalk.green("\n👤 Users Breakdown by Role:"));
-    console.table(userCounts);
-    console.log(chalk.green(`Total Users: ${totalUsers}`));
-  }
+    // 3️⃣ Mechanic conflicts
+    const conflicts = upcoming.filter((b, i, arr) =>
+      arr.some(
+        o =>
+          o._id.toString() !== b._id.toString() &&
+          o.mechanicId.toString() === b.mechanicId.toString() &&
+          new Date(o.date).getTime() === new Date(b.date).getTime()
+      )
+    );
 
-  // 3️⃣ Admins & Mechanics
-  const importantUsers = await User.find({ role: { $in: ["admin", "mechanic"] } }).select("name email role");
-  if (!isPeriodic || !arraysEqual(importantUsers, lastReportState.importantUsers)) {
-    console.log(chalk.cyan("\n📝 Admins and Mechanics:"));
-    if (importantUsers.length === 0) {
-      console.log(chalk.red(" - ❌ ALERT: No admins or mechanics found!"));
-    } else console.table(importantUsers.map(u => ({ Role: u.role.toUpperCase(), Name: u.name, Email: u.email })));
-  }
-
-  // 4️⃣ Bookings summary
-  const totalBookings = await Booking.countDocuments();
-  const recentBookings = await Booking.find().sort({ createdAt: -1 }).limit(5).populate("customer", "name email");
-  const recentBookingIds = recentBookings.map(b => b._id.toString());
-
-  if (!isPeriodic || totalBookings !== lastReportState.bookings || recentBookingIds.join(",") !== lastReportState.recentBookingIds.join(",")) {
-    console.log(chalk.magenta("\n📅 Bookings Summary:"));
-    console.log(` - Total Bookings: ${totalBookings}`);
-
-    if (recentBookings.length > 0) {
-      console.log(chalk.magenta("\n🆕 Most Recent Bookings:"));
-      console.table(
-        recentBookings.map(b => ({
-          Vehicle: b.vehicleDetails,
-          Service: b.serviceType,
-          Customer: b.customer.name,
-          Email: b.customer.email,
-          Date: b.date,
-        }))
+    if (conflicts.length > 0) {
+      console.log(`${colors.fgRed}⚠️ Mechanic Conflicts Detected!${colors.reset}`);
+      conflicts.forEach(c =>
+        console.log(`${colors.fgRed}Mechanic ${c.mechanicId} double-booked at ${c.date}${colors.reset}`)
       );
 
-      // Upcoming bookings
-      const upcomingBookings = await Booking.find({ date: { $gte: new Date() } })
-        .sort({ date: 1 })
-        .limit(10)
-        .populate("customer", "name email")
-        .populate("mechanic", "name");
-
-      console.log(chalk.yellow("\n📌 Upcoming Bookings:"));
-      if (upcomingBookings.length === 0) console.log(" - None upcoming");
-      else
-        console.table(
-          upcomingBookings.map(b => ({
-            Vehicle: b.vehicleDetails,
-            Service: b.serviceType,
-            Customer: b.customer.name,
-            Mechanic: b.mechanic?.name || "Unassigned",
-            Scheduled: b.date,
-          }))
-        );
-
-      // Mechanic conflicts
-      const mechConflicts = findMechanicConflicts(upcomingBookings);
-      if (mechConflicts.length > 0) {
-        console.log(chalk.red.bold("⚠️ ALERT: Mechanic scheduling conflicts detected!"));
-        mechConflicts.forEach(c => {
-          console.log(
-            ` - Mechanic: ${c[0].mechanic?.name || "Unknown"} | ${c[0].vehicleDetails} (${c[0].customer.name}) ↔ ${c[1].vehicleDetails} (${c[1].customer.name})`
-          );
-        });
-      }
-
-      // Conflict heatmap
-      const heatmap = calculateConflictHeatmap(upcomingBookings);
-      if (Object.keys(heatmap).length > 0) {
-        console.log(chalk.bgRed.white("\n🔥 Conflict Heatmap (high-risk days):"));
-        Object.entries(heatmap).forEach(([day, count]) => {
-          const color =
-            count >= 3 ? chalk.bgRed.white :
-            count === 2 ? chalk.bgYellow.black :
-            chalk.bgGreen.black;
-          console.log(color(` ${day}: ${count} conflict(s) `));
-        });
-      }
+      // Send alerts
+      await sendEmailAlert("Mechanic Conflict Detected", `${conflicts.length} conflicts found!`);
+      await sendSlackAlert(`⚠️ Mechanic conflicts detected: ${conflicts.length} bookings overlap.`);
+    } else {
+      console.log(`${colors.fgGreen}✅ No mechanic conflicts detected${colors.reset}`);
     }
+
+    // 4️⃣ Heatmap
+    const heatmap = {};
+    upcoming.forEach(b => {
+      const day = new Date(b.date).toDateString();
+      heatmap[day] = (heatmap[day] || 0) + 1;
+    });
+    console.log(`${colors.fgYellow}🌡️ Booking Heatmap (upcoming days):${colors.reset}`);
+    console.table(heatmap);
+
+    console.log(`${colors.fgCyan}📝 ${reportType} Report End\n${colors.reset}`);
+  } catch (err) {
+    console.error(`${colors.fgRed}❌ Error in logInitialization: ${err.message}${colors.reset}`);
+
+    // Critical alerts
+    await sendEmailAlert("Backend Alert: Initialization Failed", err.message);
+    await sendSlackAlert(`Backend initialization failed:\n${err.message}`);
   }
-
-  // Save state
-  lastReportState = { users: userCounts, totalUsers, bookings: totalBookings, recentBookingIds, importantUsers };
-
-  if (!isPeriodic) console.log(chalk.blue.bold("\n🚀 Server is ready for first requests!\n"));
-};
-
-// --------------------
-// HELPERS
-// --------------------
-const arraysEqual = (arr1, arr2) => {
-  if (!arr1 || !arr2) return false;
-  const emails1 = arr1.map(u => u.email).sort();
-  const emails2 = arr2.map(u => u.email).sort();
-  return JSON.stringify(emails1) === JSON.stringify(emails2);
-};
-
-const findMechanicConflicts = (bookings) => {
-  const conflicts = [];
-  const bookingsByMechanic = {};
-  bookings.forEach(b => {
-    if (!b.mechanic?._id) return;
-    if (!bookingsByMechanic[b.mechanic._id]) bookingsByMechanic[b.mechanic._id] = [];
-    bookingsByMechanic[b.mechanic._id].push(b);
-  });
-
-  for (const mechId in bookingsByMechanic) {
-    const mechBookings = bookingsByMechanic[mechId].sort((a, b) => new Date(a.date) - new Date(b.date));
-    for (let i = 0; i < mechBookings.length - 1; i++) {
-      const currentStart = new Date(mechBookings[i].date).getTime();
-      const currentEnd = currentStart + (mechBookings[i].durationMinutes || 60) * 60 * 1000;
-      const nextStart = new Date(mechBookings[i + 1].date).getTime();
-      if (nextStart < currentEnd) conflicts.push([mechBookings[i], mechBookings[i + 1]]);
-    }
-  }
-  return conflicts;
-};
-
-const calculateConflictHeatmap = (bookings) => {
-  const dayCounts = {};
-  bookings.forEach(b => {
-    const day = new Date(b.date).toISOString().split("T")[0];
-    if (!dayCounts[day]) dayCounts[day] = 0;
-  });
-
-  const mechConflicts = findMechanicConflicts(bookings);
-  mechConflicts.forEach(pair => {
-    const day = new Date(pair[0].date).toISOString().split("T")[0];
-    dayCounts[day] = (dayCounts[day] || 0) + 1;
-  });
-
-  return dayCounts;
 };
