@@ -1,53 +1,97 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Mobile Mechanic Pro Dashboard</title>
-<style>
-body { font-family: Arial; background: #1e1e2f; color: #eee; margin:0; padding:0;}
-header { background:#111; padding:20px; text-align:center; font-size:24px;}
-section { padding:20px;}
-pre { background:#222; padding:10px; overflow-x:auto; max-height:300px;}
-.metric { margin:10px 0; font-size:18px;}
-.chart { width: 100%; max-width:600px; height:300px; margin:20px 0;}
-</style>
-</head>
-<body>
-<header>Mobile Mechanic Pro Dashboard</header>
-<section>
-<div class="metric" id="status">Loading backend status...</div>
-<h3>Logs</h3>
-<pre id="logs">Fetching logs...</pre>
-<canvas id="bookingChart" class="chart"></canvas>
-</section>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-const token = new URLSearchParams(window.location.search).get('token');
-if(!token){ document.body.innerHTML='<h1>Access Denied</h1>'; }
+import express from "express";
+import dotenv from "dotenv";
+import cors from "cors";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
-async function fetchStatus() {
-  const res = await fetch(`/api/dashboard/status?token=${token}`);
-  const data = await res.json();
-  document.getElementById('status').textContent =
-    `Backend: ${data.backend}, Node: ${data.nodeVersion}, Uptime: ${data.uptime}, Memory: ${data.memory}, CPU Load: ${data.cpuLoad.join(', ')}`;
-}
+import connectDB from "./config/db.js";
+import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
+import { logInitialization } from "./utils/initLogger.js";
 
-async function fetchLogs() {
-  const res = await fetch(`/api/dashboard/logs?token=${token}`);
-  const text = await res.text();
-  document.getElementById('logs').textContent = text;
-}
+// Routes
+import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/users.js";
+import bookingRoutes from "./routes/bookings.js";
 
-// Dummy booking chart for future analytics
-const ctx = document.getElementById('bookingChart').getContext('2d');
-const bookingChart = new Chart(ctx, {
-  type: 'line',
-  data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets:[{label:'Bookings', data:[5,3,6,2,7,4,5], borderColor:'cyan', fill:false}] },
-  options: { responsive:true }
+dotenv.config();
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// API Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/bookings", bookingRoutes);
+
+// --------------------
+// Dashboard Routes
+// --------------------
+app.get("/api/dashboard/status", (req, res) => {
+  if (req.query.token !== process.env.REPORT_TOKEN)
+    return res.status(403).json({ message: "Forbidden" });
+
+  const memoryUsage = process.memoryUsage();
+  const uptime = process.uptime();
+  const cpuLoad = os.loadavg();
+
+  res.json({
+    backend: "✅ Running",
+    nodeVersion: process.version,
+    uptime: `${Math.floor(uptime / 60)} min`,
+    memory: `${Math.round(memoryUsage.rss / 1024 / 1024)} MB`,
+    cpuLoad: cpuLoad.map((x) => x.toFixed(2)),
+  });
 });
 
-fetchStatus(); fetchLogs();
-setInterval(()=>{ fetchStatus(); fetchLogs(); },5000);
-</script>
-</body>
-</html>
+app.get("/api/dashboard/logs", (req, res) => {
+  if (req.query.token !== process.env.REPORT_TOKEN)
+    return res.status(403).send("Forbidden");
+
+  const logPath = path.join(process.cwd(), "logs/startup.log");
+  fs.readFile(logPath, "utf-8", (err, data) => {
+    if (err) return res.status(500).send("Failed to read logs");
+    res.send(data);
+  });
+});
+
+// Serve HTML dashboard
+app.get("/dashboard", (req, res) => {
+  if (req.query.token !== process.env.REPORT_TOKEN) return res.status(403).send("Access Denied");
+  res.sendFile(path.join(process.cwd(), "dashboard.html"));
+});
+
+// Root
+app.get("/", (req, res) => res.send("Backend API is running ✅"));
+
+// Error handling
+app.use(notFound);
+app.use(errorHandler);
+
+// Start server
+const PORT = process.env.PORT || 5000;
+const startServer = async () => {
+  try {
+    await connectDB();
+    await logInitialization();
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+    // Periodic initialization
+    setInterval(async () => {
+      await logInitialization(true);
+    }, 5 * 60 * 1000);
+  } catch (err) {
+    console.error("❌ Server failed to start:", err.message);
+    import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
+      sendEmailAlert("Backend Alert: Startup Failure", err.message)
+    );
+    import("./utils/alertSlack.js").then(({ sendSlackAlert }) =>
+      sendSlackAlert(`Backend failed to start:\n${err.message}`)
+    );
+    process.exit(1);
+  }
+};
+
+startServer();
