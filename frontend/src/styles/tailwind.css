@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Example branding palette */
+:root {
+  --color-primary: #4F46E5;
+  --color-secondary: #E0E7FF;
+}
