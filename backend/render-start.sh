@@ -8,6 +8,19 @@ echo -e "\x1b[1;33m📦 Installing dependencies...\x1b[0m"
 npm install
 
 # --------------------
+# 1.5️⃣ Ensure critical packages are installed
+# --------------------
+echo -e "\x1b[1;33m📦 Checking critical packages (nodemailer)...\x1b[0m"
+npm list nodemailer >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo -e "\x1b[1;33m⚠️ nodemailer not found, installing...\x1b[0m"
+  npm install nodemailer
+  echo -e "\x1b[1;32m✅ nodemailer installed\x1b[0m"
+else
+  echo -e "\x1b[1;32m✅ nodemailer already installed\x1b[0m"
+fi
+
+# --------------------
 # 2️⃣ Validate .env and environment variables
 # --------------------
 echo -e "\x1b[1;33m🔍 Checking critical environment variables...\x1b[0m"
