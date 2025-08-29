@@ -1,128 +1,96 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pro Backend Dashboard</title>
-<style>
-  body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; color: #333; }
-  h1 { color: #222; }
-  section { background: #fff; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-  pre { background: #eee; padding: 10px; overflow-x: auto; border-radius: 5px; }
-  button { padding: 8px 12px; margin-top: 5px; cursor: pointer; border-radius: 5px; border: none; background: #007BFF; color: #fff; }
-  button:hover { background: #0056b3; }
-</style>
-</head>
-<body>
+import express from "express";
+import dotenv from "dotenv";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 
-<h1>🚀 Mobile Mechanic Backend Dashboard</h1>
+import connectDB from "./config/db.js";
+import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
+import { logInitialization } from "./utils/initLogger.js";
 
-<section>
-  <h2>MongoDB Collections</h2>
-  <pre id="collections">Loading...</pre>
-</section>
+// Routes
+import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/users.js";
+import bookingRoutes from "./routes/bookings.js";
 
-<section>
-  <h2>User Stats</h2>
-  <pre id="user-stats">Loading...</pre>
-</section>
+dotenv.config();
 
-<section>
-  <h2>Booking Stats</h2>
-  <pre id="booking-stats">Loading...</pre>
-</section>
+const app = express();
 
-<section>
-  <h2>Backend Logs</h2>
-  <pre id="logs">Loading...</pre>
-</section>
+// --------------------
+// Middleware
+// --------------------
+app.use(cors());
+app.use(express.json());
 
-<section>
-  <h2>Test Alerts</h2>
-  <button onclick="testEmail()">Send Test Email</button>
-  <button onclick="testSlack()">Send Test Slack</button>
-  <p id="alert-status"></p>
-</section>
+// --------------------
+// API Routes
+// --------------------
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/bookings", bookingRoutes);
 
-<script>
-const API_BASE = "http://localhost:5000"; // change if hosted elsewhere
-const API_KEY = "supersecrettoken123"; // match your .env REPORT_TOKEN
+// --------------------
+// Static Dashboard Setup
+// --------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-async function fetchCollections() {
-  try {
-    const res = await fetch(`${API_BASE}/api/mongo/collections`, {
-      headers: { "x-api-key": API_KEY }
-    });
-    const data = await res.json();
-    document.getElementById("collections").textContent = JSON.stringify(data, null, 2);
-  } catch(e) {
-    document.getElementById("collections").textContent = "Error: " + e.message;
+app.get("/dashboard", (req, res) => {
+  const token = req.query.token;
+  if (token !== process.env.REPORT_TOKEN) {
+    return res.status(401).send("Unauthorized: Invalid token");
   }
-}
+  res.sendFile(path.join(__dirname, "public", "dashboard.html"));
+});
 
-async function fetchUserStats() {
+// --------------------
+// Root Route
+// --------------------
+app.get("/", (req, res) => res.send("Backend API is running ✅"));
+
+// --------------------
+// Error handling middleware
+// --------------------
+app.use(notFound);
+app.use(errorHandler);
+
+// --------------------
+// MongoDB connection & server start
+// --------------------
+const PORT = process.env.PORT || 5000;
+
+const startServer = async () => {
   try {
-    const res = await fetch(`${API_BASE}/api/stats/users`, { headers: { "x-api-key": API_KEY } });
-    const data = await res.json();
-    document.getElementById("user-stats").textContent = JSON.stringify(data, null, 2);
-  } catch(e) {
-    document.getElementById("user-stats").textContent = "Error: " + e.message;
+    await connectDB();
+
+    // First-time initialization report
+    await logInitialization();
+
+    // Start server
+    app.listen(PORT, () =>
+      console.log(`🚀 Server running on port ${PORT}`)
+    );
+
+    // Periodic logging every 5 minutes
+    const intervalMs = 5 * 60 * 1000;
+    setInterval(async () => {
+      await logInitialization(true);
+    }, intervalMs);
+
+  } catch (err) {
+    console.error("❌ Server failed to start:", err.message);
+
+    // Send critical alerts
+    import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
+      sendEmailAlert("Backend Alert: Startup Failure", err.message)
+    );
+    import("./utils/alertSlack.js").then(({ sendSlackAlert }) =>
+      sendSlackAlert(`Backend failed to start:\n${err.message}`)
+    );
+
+    process.exit(1);
   }
-}
+};
 
-async function fetchBookingStats() {
-  try {
-    const res = await fetch(`${API_BASE}/api/stats/bookings`, { headers: { "x-api-key": API_KEY } });
-    const data = await res.json();
-    document.getElementById("booking-stats").textContent = JSON.stringify(data, null, 2);
-  } catch(e) {
-    document.getElementById("booking-stats").textContent = "Error: " + e.message;
-  }
-}
-
-async function fetchLogs() {
-  try {
-    const res = await fetch(`${API_BASE}/logs`, { headers: { "x-api-key": API_KEY } });
-    const text = await res.text();
-    document.getElementById("logs").textContent = text;
-  } catch(e) {
-    document.getElementById("logs").textContent = "Error: " + e.message;
-  }
-}
-
-async function testEmail() {
-  try {
-    const res = await fetch(`${API_BASE}/api/alerts/test-email`, { 
-      method: "POST", 
-      headers: { "x-api-key": API_KEY }
-    });
-    const data = await res.json();
-    document.getElementById("alert-status").textContent = data.message;
-  } catch(e) {
-    document.getElementById("alert-status").textContent = "Error: " + e.message;
-  }
-}
-
-async function testSlack() {
-  try {
-    const res = await fetch(`${API_BASE}/api/alerts/test-slack`, { 
-      method: "POST", 
-      headers: { "x-api-key": API_KEY }
-    });
-    const data = await res.json();
-    document.getElementById("alert-status").textContent = data.message;
-  } catch(e) {
-    document.getElementById("alert-status").textContent = "Error: " + e.message;
-  }
-}
-
-// Auto-fetch everything on load
-fetchCollections();
-fetchUserStats();
-fetchBookingStats();
-fetchLogs();
-setInterval(fetchLogs, 5000); // refresh logs every 5s
-</script>
-
-</body>
-</html>
+startServer();
