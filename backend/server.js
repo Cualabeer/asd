@@ -5,8 +5,8 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-import connectDB from "./config/db.js"; 
-import { errorHandler, notFound } from "./middleware/errorMiddleware.js"; 
+import connectDB from "./config/db.js";
+import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import { logInitialization } from "./utils/initLogger.js";
 
 // Routes
@@ -26,9 +26,12 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/bookings", bookingRoutes);
 
-// Dashboard routes
+// --------------------
+// Dashboard Routes
+// --------------------
 app.get("/api/dashboard/status", (req, res) => {
-  if (req.query.token !== process.env.REPORT_TOKEN) return res.status(403).json({ message: "Forbidden" });
+  if (req.query.token !== process.env.REPORT_TOKEN)
+    return res.status(403).json({ message: "Forbidden" });
 
   const memoryUsage = process.memoryUsage();
   const uptime = process.uptime();
@@ -39,12 +42,14 @@ app.get("/api/dashboard/status", (req, res) => {
     nodeVersion: process.version,
     uptime: `${Math.floor(uptime / 60)} min`,
     memory: `${Math.round(memoryUsage.rss / 1024 / 1024)} MB`,
-    cpuLoad: cpuLoad.map(x => x.toFixed(2)),
+    cpuLoad: cpuLoad.map((x) => x.toFixed(2)),
   });
 });
 
 app.get("/api/dashboard/logs", (req, res) => {
-  if (req.query.token !== process.env.REPORT_TOKEN) return res.status(403).send("Forbidden");
+  if (req.query.token !== process.env.REPORT_TOKEN)
+    return res.status(403).send("Forbidden");
+
   const logPath = path.join(process.cwd(), "logs/startup.log");
   fs.readFile(logPath, "utf-8", (err, data) => {
     if (err) return res.status(500).send("Failed to read logs");
@@ -52,26 +57,31 @@ app.get("/api/dashboard/logs", (req, res) => {
   });
 });
 
+// Serve HTML dashboard
 app.get("/dashboard", (req, res) => {
   if (req.query.token !== process.env.REPORT_TOKEN) return res.status(403).send("Access Denied");
   res.sendFile(path.join(process.cwd(), "dashboard.html"));
 });
 
-// Root Route
+// Root
 app.get("/", (req, res) => res.send("Backend API is running ✅"));
 
 // Error handling
 app.use(notFound);
 app.use(errorHandler);
 
-// Server start
+// Start server
 const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   try {
     await connectDB();
     await logInitialization();
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-    setInterval(async () => { await logInitialization(true); }, 5 * 60 * 1000);
+
+    // Periodic initialization
+    setInterval(async () => {
+      await logInitialization(true);
+    }, 5 * 60 * 1000);
   } catch (err) {
     console.error("❌ Server failed to start:", err.message);
     import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
