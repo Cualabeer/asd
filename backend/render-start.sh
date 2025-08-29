@@ -1,32 +1,38 @@
 #!/bin/bash
-echo "🚀 Starting Mobile Mechanic Backend (Render One-Command Deploy)"
+echo "🌐 Starting Mobile Mechanic Backend (Render One-Command Deploy)"
 
 # --------------------
-# 1️⃣ Ensure dependencies
+# 1️⃣ Move to backend folder
 # --------------------
-echo "📦 Installing dependencies..."
+cd backend || { echo "❌ Backend folder not found"; exit 1; }
+
+# --------------------
+# 2️⃣ Install dependencies
+# --------------------
 npm install
 
 # --------------------
-# 2️⃣ Validate critical environment variables
+# 3️⃣ Ensure .env exists
 # --------------------
-required_vars=("MONGO_URI" "JWT_SECRET" "EMAIL_HOST" "EMAIL_PORT" "EMAIL_USER" "EMAIL_PASS" "ALERT_EMAIL_RECIPIENT" "SLACK_WEBHOOK_URL")
-for var in "${required_vars[@]}"; do
-  if [ -z "${!var}" ]; then
-    echo "❌ Environment variable $var is missing. Aborting."
-    exit 1
-  fi
-done
-echo "✅ All critical environment variables are set."
+if [ ! -f .env ]; then
+  echo "⚠️ .env not found, creating placeholders..."
+  cat <<EOL > .env
+PORT=10000
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority
+JWT_SECRET=your_jwt_secret_here
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=youremail@gmail.com
+EMAIL_PASS=your_email_app_password
+ALERT_EMAIL_RECIPIENT=alerts@yourdomain.com
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/your/webhook/url
+REPORT_TOKEN=supersecrettoken123
+EOL
+  echo "✅ .env created with placeholders."
+fi
 
 # --------------------
-# 3️⃣ Prepare logs
-# --------------------
-mkdir -p logs
-echo "$(date) - Backend deploy started" >> logs/startup.log
-
-# --------------------
-# 4️⃣ Run MongoDB check
+# 4️⃣ MongoDB check
 # --------------------
 echo "🧪 Testing MongoDB connection..."
 node -e "
@@ -42,16 +48,7 @@ connectDB()
 "
 
 # --------------------
-# 5️⃣ Start backend server
+# 5️⃣ Start server on Render port
 # --------------------
-# Render sets the PORT automatically, we must use process.env.PORT
-if [ -z "$PORT" ]; then
-  echo "⚠️ PORT is not set by Render. Defaulting to 5000"
-  PORT=5000
-fi
-echo "🌐 Starting server on port $PORT..."
-node -e "
-import dotenv from 'dotenv';
-dotenv.config();
-import './server.js';
-"
+echo "🌐 Launching backend server..."
+node server.js
