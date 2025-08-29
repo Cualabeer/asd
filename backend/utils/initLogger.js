@@ -1,115 +1,167 @@
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import Booking from "../models/Booking.js";
+import chalk from "chalk";
 
-export const logInitialization = async () => {
-  console.log("\n🔹 Backend Full Initialization Report 🔹");
+let lastReportState = {
+  users: {},
+  totalUsers: 0,
+  bookings: 0,
+  recentBookingIds: [],
+  importantUsers: [],
+};
 
-  // 1️⃣ Environment variables
-  console.log("\n🌱 Environment Variables Loaded:");
-  console.log(`- MONGO_URI: ${process.env.MONGO_URI ? "✅ loaded" : "❌ missing"}`);
-  console.log(`- JWT_SECRET: ${process.env.JWT_SECRET ? "✅ loaded" : "❌ missing"}`);
-  console.log(`- NODE_ENV: ${process.env.NODE_ENV || "not set (default: development)"}`);
-  console.log(`- PORT: ${process.env.PORT || 5000}`);
+export const logInitialization = async (isPeriodic = false) => {
+  console.log(chalk.blue.bold(isPeriodic ? "\n⏱️ Periodic Backend Report" : "\n🔹 Full Initialization Report 🔹"));
 
-  // 2️⃣ MongoDB Connection Status
+  // 1️⃣ MongoDB Status
   const dbState = mongoose.connection.readyState;
   const stateText = ["Disconnected", "Connected", "Connecting", "Disconnecting"][dbState];
-  console.log(`\n🗄️ MongoDB Status: ${stateText}`);
+  const dbColor = dbState === 1 ? chalk.green : chalk.red;
+  console.log(`\n🗄️ MongoDB Status: ${dbColor(stateText)}`);
+  if (dbState !== 1) console.log(chalk.red.bold("❌ ALERT: MongoDB is not connected!"));
 
-  // 3️⃣ Routes overview with security
-  console.log("\n🛣️ Registered Routes (Security Overview):");
-  const routes = [
-    { path: "/api/auth/register", type: "Public" },
-    { path: "/api/auth/login", type: "Public" },
-    { path: "/api/users", type: "JWT + Admin Only" },
-    { path: "/api/users/:id", type: "JWT + Admin Only" },
-    { path: "/api/bookings", type: "JWT Protected" },
-    { path: "/api/bookings/:id", type: "JWT Protected" },
-  ];
-  routes.forEach((r) => console.log(` - ${r.path} → ${r.type}`));
-
-  // 4️⃣ Collections and counts
-  try {
-    const collections = await mongoose.connection.db.listCollections().toArray();
-    if (collections.length === 0) {
-      console.log("\n📂 MongoDB Collections: None (will be created on first insert)");
-    } else {
-      console.log("\n📂 MongoDB Collections and Document Counts:");
-      for (const col of collections) {
-        let count = 0;
-        try {
-          count = await mongoose.connection.db.collection(col.name).countDocuments();
-        } catch {}
-        console.log(`   - ${col.name}: ${count} document(s)`);
-      }
-    }
-  } catch (err) {
-    console.log("📂 MongoDB Collections: Unable to list (maybe not connected yet)");
+  // 2️⃣ Users breakdown
+  const roles = ["customer", "mechanic", "garage", "admin"];
+  const userCounts = {};
+  let totalUsers = 0;
+  for (const role of roles) {
+    const count = await User.countDocuments({ role });
+    userCounts[role] = count;
+    totalUsers += count;
   }
 
-  // 5️⃣ Users breakdown by role
-  try {
-    const roles = ["customer", "mechanic", "garage", "admin"];
-    console.log("\n👤 Users Breakdown by Role:");
-    for (const role of roles) {
-      const count = await User.countDocuments({ role });
-      console.log(` - ${role}: ${count}`);
-    }
-    const totalUsers = await User.countDocuments();
-    console.log(`Total Users: ${totalUsers}`);
-  } catch (err) {
-    console.log("⚠️ Unable to fetch users breakdown:", err.message);
+  if (!isPeriodic || JSON.stringify(userCounts) !== JSON.stringify(lastReportState.users)) {
+    console.log(chalk.green("\n👤 Users Breakdown by Role:"));
+    console.table(userCounts);
+    console.log(chalk.green(`Total Users: ${totalUsers}`));
   }
 
-  // 6️⃣ List of admins and mechanics
-  try {
-    const importantUsers = await User.find({ role: { $in: ["admin", "mechanic"] } }).select("name email role");
-    if (importantUsers.length > 0) {
-      console.log("\n📝 Admins and Mechanics:");
-      importantUsers.forEach(u => console.log(` - ${u.role.toUpperCase()}: ${u.name} <${u.email}>`));
-    } else {
-      console.log("\n📝 Admins and Mechanics: None found");
-    }
-  } catch (err) {
-    console.log("⚠️ Unable to list admins and mechanics:", err.message);
+  // 3️⃣ Admins & Mechanics
+  const importantUsers = await User.find({ role: { $in: ["admin", "mechanic"] } }).select("name email role");
+  if (!isPeriodic || !arraysEqual(importantUsers, lastReportState.importantUsers)) {
+    console.log(chalk.cyan("\n📝 Admins and Mechanics:"));
+    if (importantUsers.length === 0) {
+      console.log(chalk.red(" - ❌ ALERT: No admins or mechanics found!"));
+    } else console.table(importantUsers.map(u => ({ Role: u.role.toUpperCase(), Name: u.name, Email: u.email })));
   }
 
-  // 7️⃣ Bookings summary and mini-dashboard
-  try {
-    const totalBookings = await Booking.countDocuments();
-    console.log(`\n📅 Bookings Summary:`);
+  // 4️⃣ Bookings summary
+  const totalBookings = await Booking.countDocuments();
+  const recentBookings = await Booking.find().sort({ createdAt: -1 }).limit(5).populate("customer", "name email");
+  const recentBookingIds = recentBookings.map(b => b._id.toString());
+
+  if (!isPeriodic || totalBookings !== lastReportState.bookings || recentBookingIds.join(",") !== lastReportState.recentBookingIds.join(",")) {
+    console.log(chalk.magenta("\n📅 Bookings Summary:"));
     console.log(` - Total Bookings: ${totalBookings}`);
 
-    if (totalBookings > 0) {
-      const recentBookings = await Booking.find()
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .populate("customer", "name email");
+    if (recentBookings.length > 0) {
+      console.log(chalk.magenta("\n🆕 Most Recent Bookings:"));
+      console.table(
+        recentBookings.map(b => ({
+          Vehicle: b.vehicleDetails,
+          Service: b.serviceType,
+          Customer: b.customer.name,
+          Email: b.customer.email,
+          Date: b.date,
+        }))
+      );
 
-      console.log("\n🆕 Most Recent Bookings:");
-      recentBookings.forEach(b => {
-        console.log(` - ${b.vehicleDetails} | ${b.serviceType} | by ${b.customer.name} (${b.customer.email}) | on ${b.date}`);
-      });
-
+      // Upcoming bookings
       const upcomingBookings = await Booking.find({ date: { $gte: new Date() } })
         .sort({ date: 1 })
-        .limit(5)
-        .populate("customer", "name email");
+        .limit(10)
+        .populate("customer", "name email")
+        .populate("mechanic", "name");
 
-      console.log("\n📌 Upcoming Bookings:");
-      if (upcomingBookings.length === 0) {
-        console.log(" - None upcoming");
-      } else {
-        upcomingBookings.forEach(b => {
-          console.log(` - ${b.vehicleDetails} | ${b.serviceType} | by ${b.customer.name} (${b.customer.email}) | scheduled ${b.date}`);
+      console.log(chalk.yellow("\n📌 Upcoming Bookings:"));
+      if (upcomingBookings.length === 0) console.log(" - None upcoming");
+      else
+        console.table(
+          upcomingBookings.map(b => ({
+            Vehicle: b.vehicleDetails,
+            Service: b.serviceType,
+            Customer: b.customer.name,
+            Mechanic: b.mechanic?.name || "Unassigned",
+            Scheduled: b.date,
+          }))
+        );
+
+      // Mechanic conflicts
+      const mechConflicts = findMechanicConflicts(upcomingBookings);
+      if (mechConflicts.length > 0) {
+        console.log(chalk.red.bold("⚠️ ALERT: Mechanic scheduling conflicts detected!"));
+        mechConflicts.forEach(c => {
+          console.log(
+            ` - Mechanic: ${c[0].mechanic?.name || "Unknown"} | ${c[0].vehicleDetails} (${c[0].customer.name}) ↔ ${c[1].vehicleDetails} (${c[1].customer.name})`
+          );
+        });
+      }
+
+      // Conflict heatmap
+      const heatmap = calculateConflictHeatmap(upcomingBookings);
+      if (Object.keys(heatmap).length > 0) {
+        console.log(chalk.bgRed.white("\n🔥 Conflict Heatmap (high-risk days):"));
+        Object.entries(heatmap).forEach(([day, count]) => {
+          const color =
+            count >= 3 ? chalk.bgRed.white :
+            count === 2 ? chalk.bgYellow.black :
+            chalk.bgGreen.black;
+          console.log(color(` ${day}: ${count} conflict(s) `));
         });
       }
     }
-  } catch (err) {
-    console.log("⚠️ Unable to fetch bookings summary:", err.message);
   }
 
-  // 8️⃣ Initialization complete
-  console.log("\n🚀 Server is ready for first requests!\n");
+  // Save state
+  lastReportState = { users: userCounts, totalUsers, bookings: totalBookings, recentBookingIds, importantUsers };
+
+  if (!isPeriodic) console.log(chalk.blue.bold("\n🚀 Server is ready for first requests!\n"));
+};
+
+// --------------------
+// HELPERS
+// --------------------
+const arraysEqual = (arr1, arr2) => {
+  if (!arr1 || !arr2) return false;
+  const emails1 = arr1.map(u => u.email).sort();
+  const emails2 = arr2.map(u => u.email).sort();
+  return JSON.stringify(emails1) === JSON.stringify(emails2);
+};
+
+const findMechanicConflicts = (bookings) => {
+  const conflicts = [];
+  const bookingsByMechanic = {};
+  bookings.forEach(b => {
+    if (!b.mechanic?._id) return;
+    if (!bookingsByMechanic[b.mechanic._id]) bookingsByMechanic[b.mechanic._id] = [];
+    bookingsByMechanic[b.mechanic._id].push(b);
+  });
+
+  for (const mechId in bookingsByMechanic) {
+    const mechBookings = bookingsByMechanic[mechId].sort((a, b) => new Date(a.date) - new Date(b.date));
+    for (let i = 0; i < mechBookings.length - 1; i++) {
+      const currentStart = new Date(mechBookings[i].date).getTime();
+      const currentEnd = currentStart + (mechBookings[i].durationMinutes || 60) * 60 * 1000;
+      const nextStart = new Date(mechBookings[i + 1].date).getTime();
+      if (nextStart < currentEnd) conflicts.push([mechBookings[i], mechBookings[i + 1]]);
+    }
+  }
+  return conflicts;
+};
+
+const calculateConflictHeatmap = (bookings) => {
+  const dayCounts = {};
+  bookings.forEach(b => {
+    const day = new Date(b.date).toISOString().split("T")[0];
+    if (!dayCounts[day]) dayCounts[day] = 0;
+  });
+
+  const mechConflicts = findMechanicConflicts(bookings);
+  mechConflicts.forEach(pair => {
+    const day = new Date(pair[0].date).toISOString().split("T")[0];
+    dayCounts[day] = (dayCounts[day] || 0) + 1;
+  });
+
+  return dayCounts;
 };
