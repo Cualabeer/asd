@@ -113,7 +113,7 @@ connectDB()
 "
 
 # --------------------
-# 5️⃣ Run initialization report
+# 5️⃣ Run initialization report (async IIFE)
 # --------------------
 echo -e "\033[1;33m🧪 Running initialization report...\033[0m"
 node -e "
@@ -179,7 +179,6 @@ const logToFile = async (msg) => {
 
     app.listen(PORT, () => console.log(\`🚀 Server running on port \${PORT}\`));
 
-    // Periodic monitoring every 5 minutes
     const intervalMs = 5 * 60 * 1000;
     setInterval(async () => {
       try {
