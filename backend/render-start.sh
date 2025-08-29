@@ -73,13 +73,13 @@ echo "✅ Logs folder ready"
 echo "🧪 Testing MongoDB connection..."
 node -e "
 import dotenv from 'dotenv';
-import connectDB from './backend/config/db.js';
+import connectDB from './config/db.js';
 dotenv.config();
 connectDB()
   .then(()=>console.log('✅ MongoDB connection successful'))
   .catch(err=>{
     console.error('❌ MongoDB failed:', err.message);
-    process.exit(1); // Exit script if connection fails
+    process.exit(1);
   });
 "
 
@@ -89,8 +89,8 @@ connectDB()
 echo "📣 Testing alert system (email + Slack)..."
 node -e "
 import dotenv from 'dotenv';
-import { sendEmailAlert } from './backend/utils/alertMailer.js';
-import { sendSlackAlert } from './backend/utils/alertSlack.js';
+import { sendEmailAlert } from './utils/alertMailer.js';
+import { sendSlackAlert } from './utils/alertSlack.js';
 dotenv.config();
 
 (async () => {
@@ -111,35 +111,30 @@ dotenv.config();
 "
 
 # --------------------
-# 9️⃣ Automated health checks
+# 9️⃣ Automated health check (MongoDB only)
 # --------------------
-echo "🩺 Running backend health check..."
+echo "🩺 Running backend health check (MongoDB only)..."
 node -e "
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import fetch from 'node-fetch';
 dotenv.config();
 
 (async () => {
   try {
-    // Check MongoDB collections
-    const collections = await mongoose.connect(process.env.MONGO_URI).then(db => db.connection.db.listCollections().toArray());
+    const db = await mongoose.connect(process.env.MONGO_URI);
+    const collections = await db.connection.db.listCollections().toArray();
+
     if (!collections || collections.length === 0) {
       console.error('❌ MongoDB has no collections!');
       process.exit(1);
     }
-    console.log('✅ MongoDB collections found:', collections.map(c => c.name).join(', '));
 
-    // Check API root endpoint
-    const res = await fetch(`http://localhost:${process.env.PORT}/`);
-    if (res.status !== 200) {
-      console.error('❌ API root endpoint failed');
-      process.exit(1);
-    }
-    console.log('✅ API root endpoint OK');
+    console.log('✅ MongoDB connection OK, collections found:', collections.map(c => c.name).join(', '));
   } catch (err) {
     console.error('❌ Health check failed:', err.message);
     process.exit(1);
+  } finally {
+    await mongoose.disconnect();
   }
 })();
 "
@@ -149,7 +144,7 @@ dotenv.config();
 # --------------------
 echo "🧪 Running initialization report..."
 node -e "
-import { logInitialization } from './backend/utils/initLogger.js';
+import { logInitialization } from './utils/initLogger.js';
 logInitialization();
 "
 
@@ -157,4 +152,4 @@ logInitialization();
 # 1️⃣1️⃣ Start backend server
 # --------------------
 echo "🌐 Starting backend server..."
-node backend/server.js
+node server.js
