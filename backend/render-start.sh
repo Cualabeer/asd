@@ -15,7 +15,6 @@ echo "✅ Node.js version $current_node_version OK"
 # --------------------
 # 2️⃣ Install dependencies
 # --------------------
-cd backend || exit
 npm install
 
 # --------------------
@@ -114,7 +113,7 @@ dotenv.config();
 # --------------------
 # 9️⃣ MongoDB health check
 # --------------------
-echo "🩺 Running backend health check..."
+echo "🩺 Running backend health check (MongoDB only)..."
 node -e "
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
@@ -150,8 +149,7 @@ logInitialization();
 "
 
 # --------------------
-# 1️⃣1️⃣ Start backend server (Render-compatible)
+# 1️⃣1️⃣ Start backend server
 # --------------------
 echo "🌐 Starting backend server..."
-# Must bind to process.env.PORT and run in foreground
 node server.js
