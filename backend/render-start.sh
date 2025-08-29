@@ -28,10 +28,10 @@ mkdir -p ./logs
 touch ./logs/backend.log
 
 # --------------------
-# 4️⃣ Run initialization report via proper path
+# 4️⃣ Run initialization report
 # --------------------
 echo -e "\x1b[1;33m🧪 Running initialization report...\x1b[0m"
-node backend/utils/initReport.js
+node utils/initReport.js
 
 # --------------------
 # 5️⃣ Start backend server in background with monitoring
@@ -40,10 +40,10 @@ echo -e "\x1b[1;34m🌐 Starting backend server...\x1b[0m"
 nohup node -e "
 import dotenv from 'dotenv';
 import express from 'express';
-import connectDB from './backend/config/db.js';
-import { logInitialization } from './backend/utils/initLogger.js';
-import { sendEmailAlert } from './backend/utils/alertMailer.js';
-import { sendSlackAlert } from './backend/utils/alertSlack.js';
+import connectDB from './config/db.js';
+import { logInitialization } from './utils/initLogger.js';
+import { sendEmailAlert } from './utils/alertMailer.js';
+import { sendSlackAlert } from './utils/alertSlack.js';
 import fs from 'fs';
 import path from 'path';
 dotenv.config();
