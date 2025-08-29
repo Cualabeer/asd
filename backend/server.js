@@ -1,8 +1,9 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-
 import connectDB from "./config/db.js";
+
+// Middleware
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import { logInitialization } from "./utils/initLogger.js";
 
@@ -34,13 +35,13 @@ app.use("/api/bookings", bookingRoutes);
 app.get("/", (req, res) => res.send("Backend API is running ✅"));
 
 // --------------------
-// Error handling
+// Error handling middleware
 // --------------------
 app.use(notFound);
 app.use(errorHandler);
 
 // --------------------
-// MongoDB & Server Start
+// MongoDB connection & server start
 // --------------------
 const PORT = process.env.PORT || 10000;
 
@@ -48,28 +49,21 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    // Initialization report
+    // First-time initialization report
     await logInitialization();
 
+    // Start server, bind to 0.0.0.0 for Render
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });
 
     // Periodic reporting every 5 minutes
+    const intervalMs = 5 * 60 * 1000;
     setInterval(async () => {
-      await logInitialization(true);
-    }, 5 * 60 * 1000);
-
+      await logInitialization(true); // 'true' = periodic report
+    }, intervalMs);
   } catch (err) {
     console.error("❌ Server failed to start:", err.message);
-
-    import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
-      sendEmailAlert("Backend Alert: Startup Failure", err.message)
-    );
-    import("./utils/alertSlack.js").then(({ sendSlackAlert }) =>
-      sendSlackAlert(`Backend failed to start:\n${err.message}`)
-    );
-
     process.exit(1);
   }
 };
