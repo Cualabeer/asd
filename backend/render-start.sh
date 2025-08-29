@@ -1,8 +1,8 @@
 #!/bin/bash
-echo -e "\x1b[1;34m🚀 Starting Mobile Mechanic Backend (Production Deploy)\x1b[0m"
+echo -e "\x1b[1;34m🚀 Starting Mobile Mechanic Backend (Render Production Deploy)\x1b[0m"
 
 # --------------------
-# 1️⃣ Install all dependencies from package.json
+# 1️⃣ Install all dependencies
 # --------------------
 echo -e "\x1b[1;33m📦 Installing dependencies...\x1b[0m"
 npm install
@@ -51,27 +51,10 @@ mkdir -p ./logs
 touch ./logs/backend.log
 
 # --------------------
-# 4️⃣ Run initialization report
+# 4️⃣ Run initialization report via script
 # --------------------
 echo -e "\x1b[1;33m🧪 Running initialization report...\x1b[0m"
-node -e "
-import { logInitialization } from './utils/initLogger.js';
-import fs from 'fs';
-import path from 'path';
-const logFilePath = path.resolve('./logs/backend.log');
-if (!fs.existsSync(path.dirname(logFilePath))) fs.mkdirSync(path.dirname(logFilePath), { recursive: true });
-const logToFile = async msg => { const t=new Date().toISOString(); fs.appendFileSync(logFilePath, \`[\${t}] \${msg}\n\`); };
-(async()=>{
-  try {
-    await logInitialization();
-    await logToFile('✅ Initialization report logged');
-    console.log('\x1b[1;32m✅ Initialization report completed\x1b[0m');
-  } catch(err){
-    await logToFile('❌ Initialization report failed: '+err.message);
-    console.error('\x1b[1;31m❌ Initialization report failed:\x1b[0m', err.message);
-  }
-})();
-"
+node ./backend/utils/initReport.js
 
 # --------------------
 # 5️⃣ Start backend server with periodic monitoring (background)
