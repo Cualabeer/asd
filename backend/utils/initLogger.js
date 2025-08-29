@@ -62,7 +62,20 @@ export const logInitialization = async () => {
     console.log("⚠️ Unable to fetch users breakdown:", err.message);
   }
 
-  // 6️⃣ Bookings summary
+  // 6️⃣ List of admins and mechanics
+  try {
+    const importantUsers = await User.find({ role: { $in: ["admin", "mechanic"] } }).select("name email role");
+    if (importantUsers.length > 0) {
+      console.log("\n📝 Admins and Mechanics:");
+      importantUsers.forEach(u => console.log(` - ${u.role.toUpperCase()}: ${u.name} <${u.email}>`));
+    } else {
+      console.log("\n📝 Admins and Mechanics: None found");
+    }
+  } catch (err) {
+    console.log("⚠️ Unable to list admins and mechanics:", err.message);
+  }
+
+  // 7️⃣ Bookings summary
   try {
     const totalBookings = await Booking.countDocuments();
     console.log(`\n📅 Bookings Summary:`);
@@ -75,6 +88,6 @@ export const logInitialization = async () => {
     console.log("⚠️ Unable to fetch bookings summary:", err.message);
   }
 
-  // 7️⃣ First-time initialization message
+  // 8️⃣ Initialization complete
   console.log("\n🚀 Server is ready for first requests!\n");
 };
