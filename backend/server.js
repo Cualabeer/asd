@@ -1,12 +1,17 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import path from "path";
 
-import connectDB from "./config/db.js";
-import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
+import connectDB from "./config/db.js"; // Mongo connection
+import { errorHandler, notFound } from "./middleware/errorMiddleware.js"; // error middleware
+import { logInitialization } from "./utils/initLogger.js";
+
+// Routes
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
 import bookingRoutes from "./routes/bookings.js";
+import dashboardRoutes from "./routes/dashboard.js";
 
 dotenv.config();
 
@@ -19,19 +24,24 @@ app.use(cors());
 app.use(express.json());
 
 // --------------------
-// Routes
+// API Routes
 // --------------------
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // --------------------
-// Root Route
+// Serve static frontend
 // --------------------
-app.get("/", (req, res) => res.send("Backend API is running ✅"));
+app.use(express.static(path.join(process.cwd(), "public")));
+
+app.get("/", (req, res) => 
+  res.sendFile(path.join(process.cwd(), "public/index.html"))
+);
 
 // --------------------
-// Error handling
+// Error handling middleware
 // --------------------
 app.use(notFound);
 app.use(errorHandler);
@@ -45,18 +55,27 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    // Bind to 0.0.0.0 for Render
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
+    // First-time initialization report
+    await logInitialization();
 
-    // Run initialization report asynchronously
-    import("./utils/initLogger.js").then(({ logInitialization }) => logInitialization());
+    // Start server
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+    // Periodic reporting every 5 minutes
+    const intervalMs = 5 * 60 * 1000;
+    setInterval(async () => {
+      try {
+        await logInitialization(true); // 'true' = periodic report
+        console.log("🕒 Periodic initialization report completed");
+      } catch (err) {
+        console.error("❌ Periodic report failed:", err.message);
+      }
+    }, intervalMs);
 
   } catch (err) {
     console.error("❌ Server failed to start:", err.message);
 
-    // Send alerts asynchronously
+    // Send critical alerts asynchronously
     import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
       sendEmailAlert("Backend Alert: Startup Failure", err.message)
     );
