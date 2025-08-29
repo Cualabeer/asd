@@ -1,16 +1,16 @@
 #!/bin/bash
-echo -e "\033[1;34m🚀 Starting Mobile Mechanic Backend (Render One-Command Deploy)\033[0m"
+echo -e "\x1b[1;34m🚀 Starting Mobile Mechanic Backend (Render One-Command Deploy)\x1b[0m"
 
 # --------------------
 # 1️⃣ Install dependencies
 # --------------------
-echo -e "\033[1;33m📦 Installing dependencies...\033[0m"
+echo -e "\x1b[1;33m📦 Installing dependencies...\x1b[0m"
 npm install
 
 # --------------------
 # 1.5️⃣ Preflight: Check module paths
 # --------------------
-echo -e "\033[1;33m🔍 Checking essential module paths...\033[0m"
+echo -e "\x1b[1;33m🔍 Checking essential module paths...\x1b[0m"
 node -e "
 import fs from 'fs';
 import path from 'path';
@@ -31,25 +31,25 @@ let allFound = true;
 modules.forEach(mod => {
   const resolved = path.resolve(mod);
   if (!fs.existsSync(resolved)) {
-    console.error('\033[1;31m❌ Missing module:\033[0m', mod);
+    console.error('\x1b[1;31m❌ Missing module:\x1b[0m', mod);
     allFound = false;
   } else {
-    console.log('\033[1;32m✅ Found module:\033[0m', mod);
+    console.log('\x1b[1;32m✅ Found module:\x1b[0m', mod);
   }
 });
 
 if (!allFound) {
-  console.error('\033[1;31m❌ One or more modules are missing. Fix paths before deploying.\033[0m');
+  console.error('\x1b[1;31m❌ One or more modules are missing. Fix paths before deploying.\x1b[0m');
   process.exit(1);
 } else {
-  console.log('\033[1;32m✅ All modules verified successfully.\033[0m');
+  console.log('\x1b[1;32m✅ All modules verified successfully.\x1b[0m');
 }
 "
 
 # --------------------
 # 2️⃣ Environment Variable Validation
 # --------------------
-echo -e "\033[1;33m🔍 Validating critical environment variables...\033[0m"
+echo -e "\x1b[1;33m🔍 Validating critical environment variables...\x1b[0m"
 node -e "
 const requiredVars = [
   'PORT',
@@ -65,18 +65,18 @@ const requiredVars = [
 let allSet = true;
 requiredVars.forEach(v => {
   if (!process.env[v] || process.env[v].trim() === '') {
-    console.error('\033[1;31m❌ Missing environment variable:\033[0m', v);
+    console.error('\x1b[1;31m❌ Missing environment variable:\x1b[0m', v);
     allSet = false;
   } else {
-    console.log('\033[1;32m✅ Found environment variable:\033[0m', v);
+    console.log('\x1b[1;32m✅ Found environment variable:\x1b[0m', v);
   }
 });
 
 if (!allSet) {
-  console.error('\033[1;31m❌ One or more critical environment variables are missing. Fix them before starting the backend.\033[0m');
+  console.error('\x1b[1;31m❌ One or more critical environment variables are missing. Fix them before starting the backend.\x1b[0m');
   process.exit(1);
 } else {
-  console.log('\033[1;32m✅ All critical environment variables are set.\033[0m');
+  console.log('\x1b[1;32m✅ All critical environment variables are set.\x1b[0m');
 }
 "
 
@@ -84,7 +84,7 @@ if (!allSet) {
 # 3️⃣ Ensure .env exists
 # --------------------
 if [ ! -f .env ]; then
-  echo -e "\033[1;31m⚠️ .env not found, creating placeholders...\033[0m"
+  echo -e "\x1b[1;31m⚠️ .env not found, creating placeholders...\x1b[0m"
   cat <<EOL > .env
 PORT=5000
 MONGO_URI=mongodb+srv://<DB_USER>:<DB_PASSWORD>@cluster.mongodb.net/garageApp?retryWrites=true&w=majority
@@ -96,26 +96,26 @@ EMAIL_PASS=your_email_app_password
 ALERT_EMAIL_RECIPIENT=alerts@yourdomain.com
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
 EOL
-  echo -e "\033[1;32m✅ .env created with placeholders.\033[0m"
+  echo -e "\x1b[1;32m✅ .env created with placeholders.\x1b[0m"
 fi
 
 # --------------------
 # 4️⃣ MongoDB connection check
 # --------------------
-echo -e "\033[1;33m🧪 Testing MongoDB connection...\033[0m"
+echo -e "\x1b[1;33m🧪 Testing MongoDB connection...\x1b[0m"
 node -e "
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 dotenv.config();
 connectDB()
-  .then(() => console.log('\033[1;32m✅ MongoDB connection successful\033[0m'))
-  .catch(err => console.error('\033[1;31m❌ MongoDB failed:\033[0m', err.message));
+  .then(() => console.log('\x1b[1;32m✅ MongoDB connection successful\x1b[0m'))
+  .catch(err => console.error('\x1b[1;31m❌ MongoDB failed:\x1b[0m', err.message));
 "
 
 # --------------------
-# 5️⃣ Run initialization report (fully async IIFE)
+# 5️⃣ Run initialization report (async IIFE)
 # --------------------
-echo -e "\033[1;33m🧪 Running initialization report...\033[0m"
+echo -e "\x1b[1;33m🧪 Running initialization report...\x1b[0m"
 node -e "
 import { logInitialization } from './utils/initLogger.js';
 import fs from 'fs';
@@ -133,10 +133,10 @@ const logToFile = async (msg) => {
   try {
     await logInitialization();
     await logToFile('✅ Initialization report logged');
-    console.log('\033[1;32m✅ Initialization report completed\033[0m');
+    console.log('\x1b[1;32m✅ Initialization report completed\x1b[0m');
   } catch (err) {
     await logToFile('❌ Initialization report failed: ' + err.message);
-    console.error('\033[1;31m❌ Initialization report failed:\033[0m', err.message);
+    console.error('\x1b[1;31m❌ Initialization report failed:\x1b[0m', err.message);
   }
 })();
 "
@@ -144,7 +144,7 @@ const logToFile = async (msg) => {
 # --------------------
 # 6️⃣ Start backend server (async IIFE)
 # --------------------
-echo -e "\033[1;34m🌐 Starting backend server with periodic monitoring...\033[0m"
+echo -e "\x1b[1;34m🌐 Starting backend server with periodic monitoring...\x1b[0m"
 node -e "
 import dotenv from 'dotenv';
 import express from 'express';
@@ -171,11 +171,11 @@ const logToFile = async (msg) => {
 (async () => {
   try {
     await connectDB();
-    console.log('\033[1;32m🚀 Server connected to MongoDB\033[0m');
+    console.log('\x1b[1;32m🚀 Server connected to MongoDB\x1b[0m');
 
     await logInitialization();
     await logToFile('✅ Server startup and initialization report logged');
-    console.log('\033[1;32m✅ Initialization report completed\033[0m');
+    console.log('\x1b[1;32m✅ Initialization report completed\x1b[0m');
 
     app.listen(PORT, () => console.log(\`🚀 Server running on port \${PORT}\`));
 
@@ -183,12 +183,12 @@ const logToFile = async (msg) => {
     setInterval(async () => {
       try {
         await logInitialization(true);
-        console.log('\033[1;36m⏱ Periodic report sent successfully ✅\033[0m');
+        console.log('\x1b[1;36m⏱ Periodic report sent successfully ✅\x1b[0m');
         await logToFile('✅ Periodic initialization report sent');
       } catch (err) {
         const errMsg = 'Periodic report failed: ' + err.message;
         await logToFile('❌ ' + errMsg);
-        console.error('\033[1;31m❌ ' + errMsg + '\033[0m');
+        console.error('\x1b[1;31m❌ ' + errMsg + '\x1b[0m');
         await sendEmailAlert('Backend Alert: Periodic Report Failed', err.message);
         await sendSlackAlert('Backend Alert: Periodic Report Failed:\n' + err.message);
       }
@@ -197,7 +197,7 @@ const logToFile = async (msg) => {
   } catch (err) {
     const errMsg = 'Server failed to start: ' + err.message;
     await logToFile('❌ ' + errMsg);
-    console.error('\033[1;31m❌ ' + errMsg + '\033[0m');
+    console.error('\x1b[1;31m❌ ' + errMsg + '\x1b[0m');
     await sendEmailAlert('Backend Alert: Startup Failure', err.message);
     await sendSlackAlert('Backend failed to start:\n' + err.message);
     process.exit(1);
@@ -215,5 +215,5 @@ touch ./logs/backend.log
 # 8️⃣ Tail backend log in real-time
 # --------------------
 LOG_FILE="./logs/backend.log"
-echo -e "\033[1;34m📖 Tailing backend log file in real time...\033[0m"
+echo -e "\x1b[1;34m📖 Tailing backend log file in real time...\x1b[0m"
 tail -f "$LOG_FILE"
