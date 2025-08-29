@@ -1,15 +1,17 @@
 // server.js
 import express from "express";
-import mongoose from "mongoose";
-import cors from "cors";
 import dotenv from "dotenv";
+import cors from "cors";
 
-// Import routes
+import connectDB from "./config/db.js"; // Mongo connection
+import { errorHandler, notFound } from "./middleware/errorMiddleware.js"; // error middleware
+
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
 import bookingRoutes from "./routes/bookings.js";
 
 dotenv.config();
+connectDB();
 
 const app = express();
 
@@ -27,19 +29,9 @@ app.get("/", (req, res) => {
   res.send("Backend API is running ✅");
 });
 
-// MongoDB connection
-const PORT = process.env.PORT || 5000;
+// Error handling middleware
+app.use(notFound);
+app.use(errorHandler);
 
-mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  })
-  .then(() => {
-    console.log("✅ MongoDB connected");
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err.message);
-    process.exit(1);
-  });
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
