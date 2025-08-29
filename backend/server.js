@@ -1,75 +1,73 @@
+// server.js
 import express from "express";
+import path from "path";
 import dotenv from "dotenv";
 import cors from "cors";
-import path from "path";
-
 import connectDB from "./config/db.js";
-import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import { logInitialization } from "./utils/initLogger.js";
-
-// Routes
-import authRoutes from "./routes/auth.js";
-import userRoutes from "./routes/users.js";
-import bookingRoutes from "./routes/bookings.js";
+import { sendEmailAlert } from "./utils/alertMailer.js";
+import { sendSlackAlert } from "./utils/alertSlack.js";
 
 dotenv.config();
 const app = express();
+const PORT = process.env.PORT || 10000;
 
 // --------------------
 // Middleware
 // --------------------
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(process.cwd(), "/")));
 
 // --------------------
 // API Routes
 // --------------------
+import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/users.js";
+import bookingRoutes from "./routes/bookings.js";
+
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/bookings", bookingRoutes);
 
 // --------------------
-// Dashboard
+// Dashboard & Root
 // --------------------
-app.get("/dashboard", (req, res) => {
+app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "dashboard.html"));
 });
 
 // --------------------
-// Root Route
+// Health check endpoint
 // --------------------
-app.get("/", (req, res) => res.send("Backend API is running ✅"));
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
 // --------------------
-// Error handling
+// MongoDB connection & server start
 // --------------------
-app.use(notFound);
-app.use(errorHandler);
-
-// --------------------
-// Start server
-// --------------------
-const PORT = process.env.PORT || 5000;
-
 const startServer = async () => {
   try {
     await connectDB();
+    await logInitialization(); // startup log
 
-    // Log first initialization
-    await logInitialization();
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
 
-    app.listen(PORT, () =>
-      console.log(`🚀 Server running on port ${PORT}`)
-    );
-
-    // Periodic logging every 5 minutes
-    const intervalMs = 5 * 60 * 1000;
+    // periodic logging every 5 mins
     setInterval(async () => {
       await logInitialization(true);
-    }, intervalMs);
+    }, 5 * 60 * 1000);
 
   } catch (err) {
     console.error("❌ Server failed to start:", err.message);
+
+    // send critical alerts
+    try { await sendEmailAlert("Backend Alert: Startup Failure", err.message); } catch {}
+    try { await sendSlackAlert(`Backend failed to start:\n${err.message}`); } catch {}
+
     process.exit(1);
   }
 };
