@@ -8,16 +8,6 @@ echo -e "\x1b[1;33m📦 Installing dependencies...\x1b[0m"
 npm install
 
 # --------------------
-# 1.5️⃣ Ensure all package.json dependencies installed
-# --------------------
-echo -e "\x1b[1;33m📦 Verifying dependencies...\x1b[0m"
-if command -v jq >/dev/null 2>&1; then
-  for pkg in $(jq -r '.dependencies | keys[]' package.json); do
-    npm list "$pkg" >/dev/null 2>&1 || npm install "$pkg"
-  done
-fi
-
-# --------------------
 # 2️⃣ Validate environment variables
 # --------------------
 echo -e "\x1b[1;33m🔍 Checking environment variables...\x1b[0m"
@@ -38,10 +28,10 @@ mkdir -p ./logs
 touch ./logs/backend.log
 
 # --------------------
-# 4️⃣ Run initialization report
+# 4️⃣ Run initialization report via proper path
 # --------------------
 echo -e "\x1b[1;33m🧪 Running initialization report...\x1b[0m"
-node ./backend/utils/initReport.js
+node backend/utils/initReport.js
 
 # --------------------
 # 5️⃣ Start backend server in background with monitoring
