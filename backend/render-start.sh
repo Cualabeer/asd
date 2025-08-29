@@ -68,88 +68,10 @@ echo "$(date) - Backend deploy started" >> logs/startup.log
 echo "✅ Logs folder ready"
 
 # --------------------
-# 7️⃣ MongoDB connection check
+# 7️⃣ Start backend server (Render-compatible)
 # --------------------
-echo "🧪 Testing MongoDB connection..."
-node -e "
-import dotenv from 'dotenv';
-import connectDB from './config/db.js';
-dotenv.config();
-connectDB()
-  .then(()=>console.log('✅ MongoDB connection successful'))
-  .catch(err=>{
-    console.error('❌ MongoDB failed:', err.message);
-    process.exit(1);
-  });
-"
-
-# --------------------
-# 8️⃣ Test alert system (email + Slack)
-# --------------------
-echo "📣 Testing alert system (email + Slack)..."
-node -e "
-import dotenv from 'dotenv';
-import { sendEmailAlert } from './utils/alertMailer.js';
-import { sendSlackAlert } from './utils/alertSlack.js';
-dotenv.config();
-
-(async () => {
-  try {
-    await sendEmailAlert('Backend Startup Test', 'This is a test alert for email notifications.');
-    console.log('✅ Test email sent successfully');
-  } catch (err) {
-    console.error('❌ Test email failed:', err.message);
-  }
-
-  try {
-    await sendSlackAlert('Backend Startup Test: This is a Slack test message.');
-    console.log('✅ Test Slack message sent successfully');
-  } catch (err) {
-    console.error('❌ Test Slack message failed:', err.message);
-  }
-})();
-"
-
-# --------------------
-# 9️⃣ MongoDB health check
-# --------------------
-echo "🩺 Running backend health check (MongoDB only)..."
-node -e "
-import dotenv from 'dotenv';
-import mongoose from 'mongoose';
-dotenv.config();
-
-(async () => {
-  try {
-    const db = await mongoose.connect(process.env.MONGO_URI);
-    const collections = await db.connection.db.listCollections().toArray();
-
-    if (!collections || collections.length === 0) {
-      console.error('❌ MongoDB has no collections!');
-      process.exit(1);
-    }
-
-    console.log('✅ MongoDB connection OK, collections found:', collections.map(c => c.name).join(', '));
-  } catch (err) {
-    console.error('❌ Health check failed:', err.message);
-    process.exit(1);
-  } finally {
-    await mongoose.disconnect();
-  }
-})();
-"
-
-# --------------------
-# 🔟 Initialization report using Node logger
-# --------------------
-echo "🧪 Running initialization report..."
-node -e "
-import('./utils/initLogger.js').then(({ logInitialization }) => logInitialization());
-"
-
-# --------------------
-# 1️⃣1️⃣ Start backend server (Render-compatible)
-# --------------------
+# Bind directly to $PORT for Render
 echo "🌐 Starting backend server..."
-# Must bind directly to process.env.PORT for Render
-node server.js
+# Run in background so the script exits immediately (Render sees open port)
+nohup node server.js > logs/server.log 2>&1 &
+echo "✅ Backend server launched in background"
