@@ -1,10 +1,5 @@
 import fs from "fs";
 import path from "path";
-import dotenv from "dotenv";
-import { sendEmailAlert } from "./alertMailer.js";
-import { sendSlackAlert } from "./alertSlack.js";
-
-dotenv.config();
 
 export async function logInitialization(periodic = false) {
   try {
@@ -19,7 +14,5 @@ export async function logInitialization(periodic = false) {
     console.log(message);
   } catch (err) {
     console.error("❌ Initialization report failed:", err.message);
-    try { await sendEmailAlert("Backend Init Failed", err.message); } catch {}
-    try { await sendSlackAlert(`Backend Init Failed: ${err.message}`); } catch {}
   }
 }
