@@ -3,46 +3,42 @@ import path from "path";
 import dotenv from "dotenv";
 import { sendEmailAlert } from "./alertMailer.js";
 import { sendSlackAlert } from "./alertSlack.js";
+import mongoose from "mongoose";
 
 dotenv.config();
 
 export async function logInitialization(periodic = false) {
-  const logDir = path.join(process.cwd(), "logs");
-  const logFile = path.join(logDir, "startup.log");
-
   try {
     // Ensure logs folder exists
-    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    const logDir = path.join(process.cwd(), "logs");
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
 
-    // Construct message
-    const timestamp = new Date().toISOString();
-    const message = `[${timestamp}] Backend initialization ${
+    // MongoDB health check
+    let collectionsMsg = "";
+    try {
+      const db = await mongoose.connect(process.env.MONGO_URI);
+      const collections = await db.connection.db.listCollections().toArray();
+      collectionsMsg = collections.map(c => c.name).join(", ") || "No collections";
+      await mongoose.disconnect();
+    } catch (err) {
+      collectionsMsg = "MongoDB health check failed";
+    }
+
+    const message = `[${new Date().toISOString()}] Backend initialization ${
       periodic ? "(periodic)" : "(startup)"
-    } ✅`;
+    } ✅ | Collections: ${collectionsMsg}`;
 
-    // Append to log file
-    fs.appendFileSync(logFile, message + "\n");
-
-    // Output to console
+    fs.appendFileSync(path.join(logDir, "startup.log"), message + "\n");
     console.log(message);
 
+    // Optional: Send alert only on startup
+    if (!periodic) {
+      try { await sendEmailAlert("Backend Init", message); } catch {}
+      try { await sendSlackAlert(`Backend Init: ${message}`); } catch {}
+    }
   } catch (err) {
     console.error("❌ Initialization report failed:", err.message);
-
-    // Try sending alerts
-    try {
-      await sendEmailAlert(
-        `Backend Init Failed${periodic ? " (periodic)" : ""}`,
-        err.message
-      );
-    } catch (emailErr) {
-      console.error("❌ Email alert failed:", emailErr.message);
-    }
-
-    try {
-      await sendSlackAlert(`Backend Init Failed${periodic ? " (periodic)" : ""}: ${err.message}`);
-    } catch (slackErr) {
-      console.error("❌ Slack alert failed:", slackErr.message);
-    }
+    try { await sendEmailAlert("Backend Init Failed", err.message); } catch {}
+    try { await sendSlackAlert(`Backend Init Failed: ${err.message}`); } catch {}
   }
 }
