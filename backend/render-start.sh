@@ -1,21 +1,26 @@
 #!/bin/bash
-echo "🌐 Starting Mobile Mechanic Backend"
+echo "🌐 Starting Mobile Mechanic Backend (Render One-Command Deploy)"
 
-# Install dependencies
+# 1️⃣ Install dependencies
 npm install
 
-# Ensure logs folder exists
-mkdir -p logs
+# 2️⃣ Ensure .env exists
+if [ ! -f .env ]; then
+  echo "⚠️ .env not found, creating placeholder..."
+  cat <<EOL > .env
+PORT=10000
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority
+JWT_SECRET=your_jwt_secret_here
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=youremail@gmail.com
+EMAIL_PASS=your_email_app_password
+ALERT_EMAIL_RECIPIENT=alerts@yourdomain.com
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/your/webhook/url
+REPORT_TOKEN=supersecrettoken123
+EOL
+  echo "✅ .env created"
+fi
 
-# Test MongoDB connection
-node -e "
-import dotenv from 'dotenv';
-import connectDB from './config/db.js';
-dotenv.config();
-connectDB()
-  .then(()=>console.log('✅ MongoDB connection successful'))
-  .catch(err=>{console.error('❌ MongoDB failed:', err.message); process.exit(1);});
-"
-
-# Start server
+# 3️⃣ Start server directly (no cd or background processes)
 node server.js
