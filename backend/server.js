@@ -3,8 +3,8 @@ import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
 
-import connectDB from "./config/db.js"; // Mongo connection
-import { errorHandler, notFound } from "./middleware/errorMiddleware.js"; // error middleware
+import connectDB from "./config/db.js";
+import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import { logInitialization } from "./utils/initLogger.js";
 
 // Routes
@@ -34,11 +34,13 @@ app.use("/api/dashboard", dashboardRoutes);
 // --------------------
 // Serve static frontend
 // --------------------
-app.use(express.static(path.join(process.cwd(), "public")));
+const publicPath = path.join(process.cwd(), "public");
+app.use(express.static(publicPath));
 
-app.get("/", (req, res) => 
-  res.sendFile(path.join(process.cwd(), "public/index.html"))
-);
+// Serve dashboard HTML at root
+app.get("/", (req, res) => {
+  res.sendFile(path.join(publicPath, "index.html"));
+});
 
 // --------------------
 // Error handling middleware
@@ -61,11 +63,11 @@ const startServer = async () => {
     // Start server
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-    // Periodic reporting every 5 minutes
+    // Periodic initialization report every 5 minutes
     const intervalMs = 5 * 60 * 1000;
     setInterval(async () => {
       try {
-        await logInitialization(true); // 'true' = periodic report
+        await logInitialization(true);
         console.log("🕒 Periodic initialization report completed");
       } catch (err) {
         console.error("❌ Periodic report failed:", err.message);
@@ -75,7 +77,7 @@ const startServer = async () => {
   } catch (err) {
     console.error("❌ Server failed to start:", err.message);
 
-    // Send critical alerts asynchronously
+    // Async alerts
     import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
       sendEmailAlert("Backend Alert: Startup Failure", err.message)
     );
