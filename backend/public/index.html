@@ -1,61 +1,68 @@
-import express from "express";
-import dotenv from "dotenv";
-import cors from "cors";
-import connectDB from "./config/db.js";
-import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
-import { logInitialization } from "./utils/initLogger.js";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobile Mechanic Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 20px; }
+    h1 { text-align: center; }
+    .card { background: white; padding: 20px; margin: 10px auto; border-radius: 8px; max-width: 600px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    .status-ok { color: green; font-weight: bold; }
+    .status-fail { color: red; font-weight: bold; }
+    button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; background: #007bff; color: white; }
+    button:hover { background: #0056b3; }
+  </style>
+</head>
+<body>
+  <h1>Mobile Mechanic Dashboard</h1>
 
-// Routes
-import authRoutes from "./routes/auth.js";
-import userRoutes from "./routes/users.js";
-import bookingRoutes from "./routes/bookings.js";
-import healthRoutes from "./routes/health.js";
+  <div class="card">
+    <h2>MongoDB Status</h2>
+    <p id="mongo-status">Loading...</p>
+  </div>
 
-dotenv.config();
+  <div class="card">
+    <h2>Manual Test Alert</h2>
+    <button id="test-alert-btn">Send Test Alert</button>
+    <p id="test-alert-status"></p>
+  </div>
 
-const app = express();
+  <script>
+    const DASHBOARD_KEY = "supersecrettoken123"; // Same as REPORT_TOKEN in .env
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+    async function fetchStatus() {
+      try {
+        // MongoDB health check
+        const mongoRes = await fetch(`/api/health/mongo?key=${DASHBOARD_KEY}`);
+        const mongoData = await mongoRes.json();
+        const mongoEl = document.getElementById('mongo-status');
+        mongoEl.textContent = mongoData.status || "Unknown";
+        mongoEl.className = mongoData.ok ? 'status-ok' : 'status-fail';
+      } catch (err) {
+        const mongoEl = document.getElementById('mongo-status');
+        mongoEl.textContent = "❌ Error fetching status: " + err.message;
+        mongoEl.className = 'status-fail';
+      }
+    }
 
-// API Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/bookings", bookingRoutes);
-app.use("/api/health", healthRoutes);
+    document.getElementById("test-alert-btn").addEventListener("click", async () => {
+      const statusEl = document.getElementById("test-alert-status");
+      statusEl.textContent = "Sending test alert...";
+      try {
+        const res = await fetch(`/api/health/test-alert?key=${DASHBOARD_KEY}`, { method: "POST" });
+        const data = await res.json();
+        statusEl.textContent = data.ok ? "✅ Test alert sent successfully" : "❌ Failed: " + data.message;
+      } catch (err) {
+        statusEl.textContent = "❌ Error: " + err.message;
+      }
+    });
 
-// Root route
-app.get("/", (req, res) => res.send("Backend API is running ✅"));
+    // Initial load
+    fetchStatus();
 
-// Error handling
-app.use(notFound);
-app.use(errorHandler);
-
-const PORT = process.env.PORT || 5000;
-
-const startServer = async () => {
-  try {
-    await connectDB();
-    await logInitialization();
-
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
-    // Periodic reporting every 5 minutes
-    const intervalMs = 5 * 60 * 1000;
-    setInterval(async () => {
-      await logInitialization(true);
-    }, intervalMs);
-  } catch (err) {
-    console.error("❌ Server failed to start:", err.message);
-    import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
-      sendEmailAlert("Backend Alert: Startup Failure", err.message)
-    );
-    import("./utils/alertSlack.js").then(({ sendSlackAlert }) =>
-      sendSlackAlert(`Backend failed to start:\n${err.message}`)
-    );
-    process.exit(1);
-  }
-};
-
-startServer();
+    // Optional: refresh status every 30s
+    setInterval(fetchStatus, 30000);
+  </script>
+</body>
+</html>
