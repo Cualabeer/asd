@@ -1,106 +1,160 @@
 #!/bin/bash
-echo -e "\x1b[1;34m🚀 Starting Mobile Mechanic Backend (Render Production Deploy)\x1b[0m"
+echo "🚀 Starting Mobile Mechanic Backend (Render One-Command Deploy)"
 
 # --------------------
-# 1️⃣ Install all dependencies
+# 1️⃣ Node.js version check
 # --------------------
-echo -e "\x1b[1;33m📦 Installing dependencies...\x1b[0m"
+required_node_version="22"
+current_node_version=$(node -v | cut -d. -f1 | tr -d 'v')
+if [ "$current_node_version" -ne "$required_node_version" ]; then
+  echo "❌ Node.js version mismatch: $current_node_version detected, $required_node_version required."
+  exit 1
+fi
+echo "✅ Node.js version $current_node_version OK"
+
+# --------------------
+# 2️⃣ Install dependencies
+# --------------------
 npm install
 
 # --------------------
-# 1.5️⃣ Ensure critical packages are installed
+# 3️⃣ Ensure .env exists
 # --------------------
-critical_packages=("nodemailer" "node-fetch")
+if [ ! -f .env ]; then
+  echo "⚠️ .env not found, creating placeholders..."
+  cat <<EOL > .env
+PORT=5000
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority
+JWT_SECRET=your_jwt_secret_here
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=youremail@gmail.com
+EMAIL_PASS=your_email_app_password
+ALERT_EMAIL_RECIPIENT=alerts@yourdomain.com
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/your/webhook/url
+REPORT_TOKEN=supersecrettoken123
+EOL
+  echo "✅ .env created with placeholders."
+fi
+
+# --------------------
+# 4️⃣ Check critical environment variables
+# --------------------
+required_vars=("PORT" "MONGO_URI" "JWT_SECRET" "EMAIL_HOST" "EMAIL_PORT" "EMAIL_USER" "EMAIL_PASS" "ALERT_EMAIL_RECIPIENT" "SLACK_WEBHOOK_URL" "REPORT_TOKEN")
+for var in "${required_vars[@]}"; do
+  if [ -z "${!var}" ]; then
+    echo "❌ Environment variable $var is missing. Aborting deployment."
+    exit 1
+  fi
+done
+echo "✅ All critical environment variables are set."
+
+# --------------------
+# 5️⃣ Ensure critical packages
+# --------------------
+critical_packages=(nodemailer node-fetch)
 for pkg in "${critical_packages[@]}"; do
   if ! npm list "$pkg" >/dev/null 2>&1; then
-    echo -e "\x1b[1;33m⚠️ $pkg not found, installing...\x1b[0m"
+    echo "⚠️ $pkg not found, installing..."
     npm install "$pkg"
-  else
-    echo -e "\x1b[1;32m✅ $pkg is installed\x1b[0m"
   fi
 done
 
 # --------------------
-# 2️⃣ Validate environment variables
+# 6️⃣ Prepare logs folder
 # --------------------
-echo -e "\x1b[1;33m🔍 Checking environment variables...\x1b[0m"
+mkdir -p logs
+echo "$(date) - Backend deploy started" >> logs/startup.log
+echo "✅ Logs folder ready"
+
+# --------------------
+# 7️⃣ MongoDB connection check
+# --------------------
+echo "🧪 Testing MongoDB connection..."
 node -e "
-const requiredVars = ['PORT','MONGO_URI','JWT_SECRET','EMAIL_HOST','EMAIL_PORT','EMAIL_USER','EMAIL_PASS','ALERT_EMAIL_RECIPIENT','SLACK_WEBHOOK_URL'];
-let allSet = true;
-requiredVars.forEach(v => {
-  if (!process.env[v] || process.env[v].trim()==='') { console.error('\x1b[1;31m❌ Missing env:\x1b[0m', v); allSet=false; } 
-  else { console.log('\x1b[1;32m✅ Found env:\x1b[0m', v); }
-});
-if(!allSet){process.exit(1);}
+import dotenv from 'dotenv';
+import connectDB from './backend/config/db.js';
+dotenv.config();
+connectDB()
+  .then(()=>console.log('✅ MongoDB connection successful'))
+  .catch(err=>{
+    console.error('❌ MongoDB failed:', err.message);
+    process.exit(1); // Exit script if connection fails
+  });
 "
 
 # --------------------
-# 3️⃣ Ensure logs folder exists
+# 8️⃣ Test alert system (email + Slack)
 # --------------------
-mkdir -p ./logs
-touch ./logs/backend.log
-
-# --------------------
-# 4️⃣ Run initialization report
-# --------------------
-echo -e "\x1b[1;33m🧪 Running initialization report...\x1b[0m"
-node utils/initReport.js
-
-# --------------------
-# 5️⃣ Start backend server in background with monitoring
-# --------------------
-echo -e "\x1b[1;34m🌐 Starting backend server...\x1b[0m"
-nohup node -e "
+echo "📣 Testing alert system (email + Slack)..."
+node -e "
 import dotenv from 'dotenv';
-import express from 'express';
-import connectDB from './config/db.js';
-import { logInitialization } from './utils/initLogger.js';
-import { sendEmailAlert } from './utils/alertMailer.js';
-import { sendSlackAlert } from './utils/alertSlack.js';
-import fs from 'fs';
-import path from 'path';
+import { sendEmailAlert } from './backend/utils/alertMailer.js';
+import { sendSlackAlert } from './backend/utils/alertSlack.js';
 dotenv.config();
 
-const app = express();
-app.use(express.json());
-app.get('/', (req,res)=>res.send('Backend API is running ✅'));
-
-const PORT = process.env.PORT || 5000;
-const logFilePath = path.resolve('./logs/backend.log');
-if (!fs.existsSync(path.dirname(logFilePath))) fs.mkdirSync(path.dirname(logFilePath), { recursive: true });
-const logToFile = async msg => { fs.appendFileSync(logFilePath, \`[\${new Date().toISOString()}] \${msg}\n\`); };
-
-(async()=>{
+(async () => {
   try {
-    await connectDB();
-    console.log('\x1b[1;32m🚀 MongoDB connected\x1b[0m');
-    await logInitialization();
-    await logToFile('✅ Server startup & initialization report logged');
-    app.listen(PORT,()=>console.log(\`🚀 Server running on port \${PORT}\`));
+    await sendEmailAlert('Backend Startup Test', 'This is a test alert for email notifications.');
+    console.log('✅ Test email sent successfully');
+  } catch (err) {
+    console.error('❌ Test email failed:', err.message);
+  }
 
-    const intervalMs = 5*60*1000;
-    setInterval(async()=>{
-      try{
-        await logInitialization(true);
-        await logToFile('✅ Periodic initialization report sent');
-      }catch(err){
-        const errMsg='Periodic report failed: '+err.message;
-        await logToFile('❌ '+errMsg);
-        console.error('\x1b[1;31m❌ '+errMsg+'\x1b[0m');
-        await sendEmailAlert('Backend Alert: Periodic Report Failed', err.message);
-        await sendSlackAlert('Backend Alert: Periodic Report Failed:\\n'+err.message);
-      }
-    }, intervalMs);
+  try {
+    await sendSlackAlert('Backend Startup Test: This is a Slack test message.');
+    console.log('✅ Test Slack message sent successfully');
+  } catch (err) {
+    console.error('❌ Test Slack message failed:', err.message);
+  }
+})();
+"
 
-  }catch(err){
-    const errMsg='Server failed to start: '+err.message;
-    await logToFile('❌ '+errMsg);
-    console.error('\x1b[1;31m❌ '+errMsg+'\x1b[0m');
-    await sendEmailAlert('Backend Alert: Startup Failure', err.message);
-    await sendSlackAlert('Backend failed to start:\\n'+err.message);
+# --------------------
+# 9️⃣ Automated health checks
+# --------------------
+echo "🩺 Running backend health check..."
+node -e "
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import fetch from 'node-fetch';
+dotenv.config();
+
+(async () => {
+  try {
+    // Check MongoDB collections
+    const collections = await mongoose.connect(process.env.MONGO_URI).then(db => db.connection.db.listCollections().toArray());
+    if (!collections || collections.length === 0) {
+      console.error('❌ MongoDB has no collections!');
+      process.exit(1);
+    }
+    console.log('✅ MongoDB collections found:', collections.map(c => c.name).join(', '));
+
+    // Check API root endpoint
+    const res = await fetch(`http://localhost:${process.env.PORT}/`);
+    if (res.status !== 200) {
+      console.error('❌ API root endpoint failed');
+      process.exit(1);
+    }
+    console.log('✅ API root endpoint OK');
+  } catch (err) {
+    console.error('❌ Health check failed:', err.message);
     process.exit(1);
   }
 })();
-" >/dev/null 2>&1 &
-echo -e "\x1b[1;32m✅ Backend started in background.\x1b[0m"
-echo -e "\x1b[1;33m📝 Logs: ./logs/backend.log\x1b[0m"
+"
+
+# --------------------
+# 🔟 Run initial logInitialization report
+# --------------------
+echo "🧪 Running initialization report..."
+node -e "
+import { logInitialization } from './backend/utils/initLogger.js';
+logInitialization();
+"
+
+# --------------------
+# 1️⃣1️⃣ Start backend server
+# --------------------
+echo "🌐 Starting backend server..."
+node backend/server.js
