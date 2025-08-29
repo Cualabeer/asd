@@ -38,7 +38,7 @@ EOL
 fi
 
 # --------------------
-# 4️⃣ Validate critical environment variables
+# 4️⃣ Check critical environment variables
 # --------------------
 required_vars=("PORT" "MONGO_URI" "JWT_SECRET" "EMAIL_HOST" "EMAIL_PORT" "EMAIL_USER" "EMAIL_PASS" "ALERT_EMAIL_RECIPIENT" "SLACK_WEBHOOK_URL" "REPORT_TOKEN")
 for var in "${required_vars[@]}"; do
