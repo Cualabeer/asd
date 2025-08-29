@@ -81,13 +81,13 @@ if (!allSet) {
 "
 
 # --------------------
-# 3️⃣ Ensure .env exists (optional if using Render environment)
+# 3️⃣ Ensure .env exists
 # --------------------
 if [ ! -f .env ]; then
   echo -e "\033[1;31m⚠️ .env not found, creating placeholders...\033[0m"
   cat <<EOL > .env
 PORT=5000
-MONGO_URI=mongodb+srv://DB_USER:DB_PASSWORD@cluster.mongodb.net/garageApp?retryWrites=true&w=majority
+MONGO_URI=mongodb+srv://<DB_USER>:<DB_PASSWORD>@cluster.mongodb.net/garageApp?retryWrites=true&w=majority
 JWT_SECRET=your_jwt_secret_here
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
@@ -113,7 +113,7 @@ connectDB()
 "
 
 # --------------------
-# 5️⃣ Run initialization report (async IIFE)
+# 5️⃣ Run initialization report (fully async IIFE)
 # --------------------
 echo -e "\033[1;33m🧪 Running initialization report...\033[0m"
 node -e "
@@ -132,17 +132,17 @@ const logToFile = async (msg) => {
 (async () => {
   try {
     await logInitialization();
-    console.log('\033[1;32m✅ Initialization report logged\033[0m');
-    await logToFile('Initialization report logged ✅');
+    await logToFile('✅ Initialization report logged');
+    console.log('\033[1;32m✅ Initialization report completed\033[0m');
   } catch (err) {
+    await logToFile('❌ Initialization report failed: ' + err.message);
     console.error('\033[1;31m❌ Initialization report failed:\033[0m', err.message);
-    await logToFile('Initialization report failed ❌: ' + err.message);
   }
 })();
 "
 
 # --------------------
-# 6️⃣ Start backend server with self-monitoring (async IIFE fix)
+# 6️⃣ Start backend server (async IIFE)
 # --------------------
 echo -e "\033[1;34m🌐 Starting backend server with periodic monitoring...\033[0m"
 node -e "
@@ -174,8 +174,8 @@ const logToFile = async (msg) => {
     console.log('\033[1;32m🚀 Server connected to MongoDB\033[0m');
 
     await logInitialization();
-    console.log('\033[1;32m✅ Initialization report logged\033[0m');
-    await logToFile('Server startup and initialization report ✅');
+    await logToFile('✅ Server startup and initialization report logged');
+    console.log('\033[1;32m✅ Initialization report completed\033[0m');
 
     app.listen(PORT, () => console.log(\`🚀 Server running on port \${PORT}\`));
 
@@ -184,11 +184,11 @@ const logToFile = async (msg) => {
       try {
         await logInitialization(true);
         console.log('\033[1;36m⏱ Periodic report sent successfully ✅\033[0m');
-        await logToFile('Periodic initialization report sent ✅');
+        await logToFile('✅ Periodic initialization report sent');
       } catch (err) {
         const errMsg = 'Periodic report failed: ' + err.message;
+        await logToFile('❌ ' + errMsg);
         console.error('\033[1;31m❌ ' + errMsg + '\033[0m');
-        await logToFile(errMsg);
         await sendEmailAlert('Backend Alert: Periodic Report Failed', err.message);
         await sendSlackAlert('Backend Alert: Periodic Report Failed:\n' + err.message);
       }
@@ -196,8 +196,8 @@ const logToFile = async (msg) => {
 
   } catch (err) {
     const errMsg = 'Server failed to start: ' + err.message;
+    await logToFile('❌ ' + errMsg);
     console.error('\033[1;31m❌ ' + errMsg + '\033[0m');
-    await logToFile(errMsg);
     await sendEmailAlert('Backend Alert: Startup Failure', err.message);
     await sendSlackAlert('Backend failed to start:\n' + err.message);
     process.exit(1);
@@ -212,7 +212,7 @@ mkdir -p ./logs
 touch ./logs/backend.log
 
 # --------------------
-# 8️⃣ Tail backend log in real-time (optional)
+# 8️⃣ Tail backend log in real-time
 # --------------------
 LOG_FILE="./logs/backend.log"
 echo -e "\033[1;34m📖 Tailing backend log file in real time...\033[0m"
