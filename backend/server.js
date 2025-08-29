@@ -3,8 +3,9 @@ import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 
-import connectDB from "./config/db.js";
+import connectDB from "./config/db.js"; // Mongo connection
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import { logInitialization } from "./utils/initLogger.js";
 import { sendEmailAlert } from "./utils/alertMailer.js";
@@ -16,11 +17,8 @@ import userRoutes from "./routes/users.js";
 import bookingRoutes from "./routes/bookings.js";
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
+const PORT = process.env.PORT || 5000;
 
 // --------------------
 // Middleware
@@ -36,43 +34,16 @@ app.use("/api/users", userRoutes);
 app.use("/api/bookings", bookingRoutes);
 
 // --------------------
-// Dashboard APIs
+// Serve Pro Dashboard
 // --------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// List MongoDB collections
-app.get("/api/collections", async (req, res) => {
-  const token = req.query.token;
-  if (token !== process.env.REPORT_TOKEN) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const mongoose = (await import("mongoose")).default;
-    await connectDB();
-    const collections = await mongoose.connection.db.listCollections().toArray();
-    res.json(collections.map(c => c.name));
-    await mongoose.disconnect();
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Test alerts (email + Slack)
-app.post("/api/test-alert", async (req, res) => {
-  const token = req.query.token;
-  if (token !== process.env.REPORT_TOKEN) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    await sendEmailAlert("Backend Test Alert", "This is a test email from the dashboard.");
-    await sendSlackAlert("Backend Test Alert: Slack message sent from dashboard.");
-    res.json({ success: true, message: "Alerts sent successfully" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Serve dashboard HTML
 app.get("/dashboard", (req, res) => {
   const token = req.query.token;
-  if (token !== process.env.REPORT_TOKEN) return res.status(401).send("Unauthorized");
+  if (!token || token !== process.env.REPORT_TOKEN) {
+    return res.status(401).send("Unauthorized: Invalid token");
+  }
   res.sendFile(path.join(__dirname, "dashboard.html"));
 });
 
@@ -88,26 +59,51 @@ app.use(notFound);
 app.use(errorHandler);
 
 // --------------------
-// MongoDB connection & server start
+// Utility function to log to alerts.log
 // --------------------
-const PORT = process.env.PORT || 5000;
+const logAlert = (msg) => {
+  const logPath = path.join(__dirname, "logs/alerts.log");
+  fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
+};
 
+// --------------------
+// Start server
+// --------------------
 const startServer = async () => {
   try {
     await connectDB();
+    console.log("✅ MongoDB connected");
+
+    // First-time initialization report
     await logInitialization();
 
+    // Start server
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-    // Periodic initialization reporting every 5 minutes
+    // Periodic reporting every 5 minutes
+    const intervalMs = 5 * 60 * 1000;
     setInterval(async () => {
-      await logInitialization(true);
-    }, 5 * 60 * 1000);
+      try {
+        await logInitialization(true); // 'true' = periodic
+      } catch (err) {
+        logAlert(`Initialization report failed: ${err.message}`);
+      }
+    }, intervalMs);
 
   } catch (err) {
     console.error("❌ Server failed to start:", err.message);
-    await sendEmailAlert("Backend Alert: Startup Failure", err.message).catch(() => {});
-    await sendSlackAlert(`Backend failed to start:\n${err.message}`).catch(() => {});
+    logAlert(`Startup Failure: ${err.message}`);
+
+    // Send critical alerts
+    import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
+      sendEmailAlert("Backend Alert: Startup Failure", err.message)
+        .catch(e => logAlert(`Email alert failed: ${e.message}`))
+    );
+    import("./utils/alertSlack.js").then(({ sendSlackAlert }) =>
+      sendSlackAlert(`Backend failed to start:\n${err.message}`)
+        .catch(e => logAlert(`Slack alert failed: ${e.message}`))
+    );
+
     process.exit(1);
   }
 };
