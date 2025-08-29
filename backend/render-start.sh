@@ -176,7 +176,6 @@ const startServer = async () => {
 
     app.listen(PORT, () => console.log(\`🚀 Server running on port \${PORT}\`));
 
-    // Periodic monitoring every 5 minutes
     const intervalMs = 5 * 60 * 1000;
     setInterval(async () => {
       try {
@@ -206,13 +205,14 @@ startServer();
 "
 
 # --------------------
-# 7️⃣ Tail backend log in real-time (optional)
+# 7️⃣ Ensure log file exists before tailing
+# --------------------
+mkdir -p ./logs
+touch ./logs/backend.log
+
+# --------------------
+# 8️⃣ Tail backend log in real-time (optional)
 # --------------------
 LOG_FILE="./logs/backend.log"
 echo -e "\033[1;34m📖 Tailing backend log file in real time...\033[0m"
-
-if [ -f "$LOG_FILE" ]; then
-  tail -f "$LOG_FILE"
-else
-  echo -e "\033[1;31m⚠️ Log file not found: $LOG_FILE\033[0m"
-fi
+tail -f "$LOG_FILE"
