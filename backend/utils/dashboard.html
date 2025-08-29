@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pro Backend Dashboard</title>
+<style>
+body { font-family: Arial, sans-serif; background:#f5f5f5; margin:0; padding:20px;}
+h1 { color:#333; }
+.card { background:#fff; padding:20px; margin:10px 0; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+.status { font-weight:bold; }
+.status.true { color:green; }
+.status.false { color:red; }
+</style>
+</head>
+<body>
+<h1>Pro Backend Dashboard</h1>
+<div class="card">
+  <h2>Backend Status</h2>
+  <p id="backend-status" class="status">Checking...</p>
+</div>
+<div class="card">
+  <h2>MongoDB Collections</h2>
+  <ul id="collections"></ul>
+</div>
+<div class="card">
+  <h2>Email Alert</h2>
+  <p id="email-status" class="status">Checking...</p>
+</div>
+<div class="card">
+  <h2>Slack Alert</h2>
+  <p id="slack-status" class="status">Checking...</p>
+</div>
+
+<script>
+async function loadDashboard() {
+  try {
+    const res = await fetch("/api/dashboard");
+    const data = await res.json();
+
+    document.getElementById("backend-status").textContent = data.backend ? "Online ✅" : "Offline ❌";
+    document.getElementById("backend-status").className = 'status ' + data.backend;
+
+    const collectionsEl = document.getElementById("collections");
+    collectionsEl.innerHTML = "";
+    data.collections.forEach(c => {
+      const li = document.createElement("li");
+      li.textContent = c;
+      collectionsEl.appendChild(li);
+    });
+
+    document.getElementById("email-status").textContent = data.email ? "OK ✅" : "Failed ❌";
+    document.getElementById("email-status").className = 'status ' + data.email;
+
+    document.getElementById("slack-status").textContent = data.slack ? "OK ✅" : "Failed ❌";
+    document.getElementById("slack-status").className = 'status ' + data.slack;
+
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+loadDashboard();
+setInterval(loadDashboard, 300000); // refresh every 5 min
+</script>
+</body>
+</html>
