@@ -2,10 +2,23 @@
 echo -e "\x1b[1;34m🚀 Starting Mobile Mechanic Backend (Render Production Deploy)\x1b[0m"
 
 # --------------------
-# 1️⃣ Install dependencies
+# 1️⃣ Install all dependencies
 # --------------------
 echo -e "\x1b[1;33m📦 Installing dependencies...\x1b[0m"
 npm install
+
+# --------------------
+# 1.5️⃣ Ensure critical packages are installed
+# --------------------
+critical_packages=("nodemailer" "node-fetch")
+for pkg in "${critical_packages[@]}"; do
+  if ! npm list "$pkg" >/dev/null 2>&1; then
+    echo -e "\x1b[1;33m⚠️ $pkg not found, installing...\x1b[0m"
+    npm install "$pkg"
+  else
+    echo -e "\x1b[1;32m✅ $pkg is installed\x1b[0m"
+  fi
+done
 
 # --------------------
 # 2️⃣ Validate environment variables
@@ -22,7 +35,7 @@ if(!allSet){process.exit(1);}
 "
 
 # --------------------
-# 3️⃣ Ensure log folder exists
+# 3️⃣ Ensure logs folder exists
 # --------------------
 mkdir -p ./logs
 touch ./logs/backend.log
