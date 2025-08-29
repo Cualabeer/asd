@@ -1,30 +1,33 @@
 #!/bin/bash
-echo -e "\x1b[1;34m🚀 Starting Mobile Mechanic Backend (Render One-Command Deploy)\x1b[0m"
+echo -e "\x1b[1;34m🚀 Starting Mobile Mechanic Backend (Production Deploy)\x1b[0m"
 
 # --------------------
-# 1️⃣ Install dependencies
+# 1️⃣ Install all dependencies from package.json
 # --------------------
 echo -e "\x1b[1;33m📦 Installing dependencies...\x1b[0m"
 npm install
 
 # --------------------
-# 1.5️⃣ Auto-install critical packages if missing
+# 1.5️⃣ Auto-install any missing dependencies from package.json
 # --------------------
-critical_packages=("nodemailer" "node-fetch" "bcrypt" "cors" "dotenv" "express" "jsonwebtoken" "mongoose")
-
-for pkg in "${critical_packages[@]}"; do
-  npm list $pkg >/dev/null 2>&1
-  if [ $? -ne 0 ]; then
-    echo -e "\x1b[1;33m⚠️ $pkg not found, installing...\x1b[0m"
-    npm install $pkg
-    echo -e "\x1b[1;32m✅ $pkg installed\x1b[0m"
-  else
-    echo -e "\x1b[1;32m✅ $pkg already installed\x1b[0m"
-  fi
-done
+echo -e "\x1b[1;33m📦 Checking all package.json dependencies...\x1b[0m"
+if ! command -v jq >/dev/null 2>&1; then
+  echo -e "\x1b[1;31m❌ jq is not installed. Please install jq to use dynamic dependency check.\x1b[0m"
+else
+  for pkg in $(jq -r '.dependencies | keys[]' package.json); do
+    npm list "$pkg" >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+      echo -e "\x1b[1;33m⚠️ $pkg missing, installing...\x1b[0m"
+      npm install "$pkg"
+      echo -e "\x1b[1;32m✅ $pkg installed\x1b[0m"
+    else
+      echo -e "\x1b[1;32m✅ $pkg already installed\x1b[0m"
+    fi
+  done
+fi
 
 # --------------------
-# 2️⃣ Validate .env and environment variables
+# 2️⃣ Validate environment variables
 # --------------------
 echo -e "\x1b[1;33m🔍 Checking critical environment variables...\x1b[0m"
 node -e "
@@ -71,10 +74,10 @@ const logToFile = async msg => { const t=new Date().toISOString(); fs.appendFile
 "
 
 # --------------------
-# 5️⃣ Start backend server with periodic monitoring
+# 5️⃣ Start backend server with periodic monitoring (background)
 # --------------------
 echo -e "\x1b[1;34m🌐 Starting backend server...\x1b[0m"
-node -e "
+nohup node -e "
 import dotenv from 'dotenv';
 import express from 'express';
 import connectDB from './config/db.js';
@@ -128,10 +131,6 @@ const logToFile = async msg => { const t=new Date().toISOString(); fs.appendFile
     process.exit(1);
   }
 })();
-"
-
-# --------------------
-# 6️⃣ Tail backend log in real-time
-# --------------------
-echo -e "\x1b[1;34m📖 Tailing backend log...\x1b[0m"
-tail -f ./logs/backend.log
+" >/dev/null 2>&1 &
+echo -e "\x1b[1;32m✅ Backend started in the background.\x1b[0m"
+echo -e "\x1b[1;33m📝 Logs are available at ./logs/backend.log\x1b[0m"
