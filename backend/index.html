@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mobile Mechanic Dashboard</title>
+<style>
+body { font-family: Arial; margin: 40px; }
+h1 { color: #2e7d32; }
+#status { font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Backend Status Dashboard</h1>
+<p>Status: <span id="status">Loading...</span></p>
+<script>
+fetch('/api/health')
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById('status').textContent = data.status;
+  })
+  .catch(err => {
+    document.getElementById('status').textContent = 'Error';
+  });
+</script>
+</body>
+</html>
