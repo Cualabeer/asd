@@ -111,7 +111,7 @@ dotenv.config();
 "
 
 # --------------------
-# 9️⃣ Automated health check (MongoDB only)
+# 9️⃣ MongoDB health check
 # --------------------
 echo "🩺 Running backend health check (MongoDB only)..."
 node -e "
@@ -140,7 +140,7 @@ dotenv.config();
 "
 
 # --------------------
-# 🔟 Run initial logInitialization report
+# 🔟 Initialization report
 # --------------------
 echo "🧪 Running initialization report..."
 node -e "
@@ -149,20 +149,8 @@ logInitialization();
 "
 
 # --------------------
-# 1️⃣1️⃣ Start backend server with Render port detection
+# 1️⃣1️⃣ Start backend server (Render-compatible)
 # --------------------
 echo "🌐 Starting backend server..."
-
-export PORT=${PORT:-5000}
-
-# Temporary listener to open port immediately for Render
-node -e "
-import http from 'http';
-const PORT = process.env.PORT;
-http.createServer((req, res) => res.end('OK')).listen(PORT, () => {
-  console.log('✅ Temporary listener on port', PORT, 'to satisfy Render');
-});
-" &
-
-# Start the real backend server
+# Must bind directly to process.env.PORT for Render
 node server.js
