@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mobile Mechanic Backend Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+    h1 { color: #2c3e50; }
+    pre { background: #eee; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    .healthy { color: green; }
+    .error { color: red; }
+    #refresh { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Mobile Mechanic Backend Dashboard</h1>
+
+  <div>
+    <label>Enter Report Token: </label>
+    <input type="password" id="token">
+    <button onclick="loadDashboard()">View Dashboard</button>
+  </div>
+
+  <div id="dashboard" style="display:none;">
+    <h2>Status</h2>
+    <pre id="status"></pre>
+
+    <h2>MongoDB Collections</h2>
+    <pre id="collections"></pre>
+
+    <h2>Startup Logs</h2>
+    <pre id="logs"></pre>
+
+    <button id="refresh" onclick="loadDashboard()">Refresh</button>
+  </div>
+
+  <script>
+    async function loadDashboard() {
+      const token = document.getElementById('token').value;
+      if(!token) { alert('Enter REPORT_TOKEN'); return; }
+
+      try {
+        const statusRes = await fetch(`/api/dashboard/status?token=${token}`);
+        const status = await statusRes.json();
+        if(status.error) { alert(status.error); return; }
+
+        document.getElementById('dashboard').style.display = 'block';
+        document.getElementById('status').textContent = status.message;
+        document.getElementById('collections').textContent = status.collections.join(', ');
+        document.getElementById('logs').textContent = status.logs;
+      } catch (err) {
+        alert('Failed to load dashboard: ' + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
