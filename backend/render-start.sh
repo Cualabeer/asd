@@ -51,7 +51,7 @@ mkdir -p ./logs
 touch ./logs/backend.log
 
 # --------------------
-# 4️⃣ Run initialization report via script
+# 4️⃣ Run initialization report via separate script
 # --------------------
 echo -e "\x1b[1;33m🧪 Running initialization report...\x1b[0m"
 node ./backend/utils/initReport.js
