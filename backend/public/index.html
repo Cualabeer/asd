@@ -1,57 +1,61 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Mobile Mechanic Backend Dashboard</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-    h1 { color: #2c3e50; }
-    pre { background: #eee; padding: 10px; border-radius: 5px; overflow-x: auto; }
-    .healthy { color: green; }
-    .error { color: red; }
-    #refresh { margin-top: 10px; }
-  </style>
-</head>
-<body>
-  <h1>Mobile Mechanic Backend Dashboard</h1>
+import express from "express";
+import dotenv from "dotenv";
+import cors from "cors";
+import connectDB from "./config/db.js";
+import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
+import { logInitialization } from "./utils/initLogger.js";
 
-  <div>
-    <label>Enter Report Token: </label>
-    <input type="password" id="token">
-    <button onclick="loadDashboard()">View Dashboard</button>
-  </div>
+// Routes
+import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/users.js";
+import bookingRoutes from "./routes/bookings.js";
+import healthRoutes from "./routes/health.js";
 
-  <div id="dashboard" style="display:none;">
-    <h2>Status</h2>
-    <pre id="status"></pre>
+dotenv.config();
 
-    <h2>MongoDB Collections</h2>
-    <pre id="collections"></pre>
+const app = express();
 
-    <h2>Startup Logs</h2>
-    <pre id="logs"></pre>
+// Middleware
+app.use(cors());
+app.use(express.json());
 
-    <button id="refresh" onclick="loadDashboard()">Refresh</button>
-  </div>
+// API Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/bookings", bookingRoutes);
+app.use("/api/health", healthRoutes);
 
-  <script>
-    async function loadDashboard() {
-      const token = document.getElementById('token').value;
-      if(!token) { alert('Enter REPORT_TOKEN'); return; }
+// Root route
+app.get("/", (req, res) => res.send("Backend API is running ✅"));
 
-      try {
-        const statusRes = await fetch(`/api/dashboard/status?token=${token}`);
-        const status = await statusRes.json();
-        if(status.error) { alert(status.error); return; }
+// Error handling
+app.use(notFound);
+app.use(errorHandler);
 
-        document.getElementById('dashboard').style.display = 'block';
-        document.getElementById('status').textContent = status.message;
-        document.getElementById('collections').textContent = status.collections.join(', ');
-        document.getElementById('logs').textContent = status.logs;
-      } catch (err) {
-        alert('Failed to load dashboard: ' + err.message);
-      }
-    }
-  </script>
-</body>
-</html>
+const PORT = process.env.PORT || 5000;
+
+const startServer = async () => {
+  try {
+    await connectDB();
+    await logInitialization();
+
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+    // Periodic reporting every 5 minutes
+    const intervalMs = 5 * 60 * 1000;
+    setInterval(async () => {
+      await logInitialization(true);
+    }, intervalMs);
+  } catch (err) {
+    console.error("❌ Server failed to start:", err.message);
+    import("./utils/alertMailer.js").then(({ sendEmailAlert }) =>
+      sendEmailAlert("Backend Alert: Startup Failure", err.message)
+    );
+    import("./utils/alertSlack.js").then(({ sendSlackAlert }) =>
+      sendSlackAlert(`Backend failed to start:\n${err.message}`)
+    );
+    process.exit(1);
+  }
+};
+
+startServer();
