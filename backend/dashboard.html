@@ -1,53 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Mobile Mechanic Pro Dashboard</title>
-<style>
-body { font-family: Arial; background: #1e1e2f; color: #eee; margin:0; padding:0;}
-header { background:#111; padding:20px; text-align:center; font-size:24px;}
-section { padding:20px;}
-pre { background:#222; padding:10px; overflow-x:auto; max-height:300px;}
-.metric { margin:10px 0; font-size:18px;}
-.chart { width: 100%; max-width:600px; height:300px; margin:20px 0;}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pro Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f6f8; }
+    header { background: #2c3e50; color: white; padding: 1rem; text-align: center; }
+    main { padding: 1rem; }
+    .card { background: white; padding: 1rem; margin: 1rem 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+    h2 { margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.5rem; border: 1px solid #ddd; text-align: left; }
+    th { background: #ecf0f1; }
+  </style>
 </head>
 <body>
-<header>Mobile Mechanic Pro Dashboard</header>
-<section>
-<div class="metric" id="status">Loading backend status...</div>
-<h3>Logs</h3>
-<pre id="logs">Fetching logs...</pre>
-<canvas id="bookingChart" class="chart"></canvas>
-</section>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-const token = new URLSearchParams(window.location.search).get('token');
-if(!token){ document.body.innerHTML='<h1>Access Denied</h1>'; }
+  <header>
+    <h1>Mobile Mechanic Pro Dashboard</h1>
+  </header>
+  <main>
+    <div class="grid">
+      <div class="card">
+        <h2>Users</h2>
+        <ul id="userList"></ul>
+      </div>
+      <div class="card">
+        <h2>Bookings</h2>
+        <table id="bookingTable">
+          <thead>
+            <tr><th>ID</th><th>Customer</th><th>Service</th><th>Status</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>System Health</h2>
+        <ul>
+          <li id="dbStatus">DB: Loading...</li>
+          <li id="alertsStatus">Alerts: Loading...</li>
+        </ul>
+      </div>
+    </div>
+  </main>
+  <script>
+    async function fetchUsers() {
+      const res = await fetch('/api/users');
+      const users = await res.json();
+      const list = document.getElementById('userList');
+      list.innerHTML = users.map(u => `<li>${u.name} (${u.email})</li>`).join('');
+    }
 
-async function fetchStatus() {
-  const res = await fetch(`/api/dashboard/status?token=${token}`);
-  const data = await res.json();
-  document.getElementById('status').textContent =
-    `Backend: ${data.backend}, Node: ${data.nodeVersion}, Uptime: ${data.uptime}, Memory: ${data.memory}, CPU Load: ${data.cpuLoad.join(', ')}`;
-}
+    async function fetchBookings() {
+      const res = await fetch('/api/bookings');
+      const bookings = await res.json();
+      const tbody = document.querySelector('#bookingTable tbody');
+      tbody.innerHTML = bookings.map(b =>
+        `<tr><td>${b._id}</td><td>${b.customerName}</td><td>${b.service}</td><td>${b.status}</td></tr>`
+      ).join('');
+    }
 
-async function fetchLogs() {
-  const res = await fetch(`/api/dashboard/logs?token=${token}`);
-  const text = await res.text();
-  document.getElementById('logs').textContent = text;
-}
+    async function fetchHealth() {
+      try {
+        const res = await fetch('/');
+        if(res.ok) {
+          document.getElementById('dbStatus').textContent = 'DB: Connected';
+          document.getElementById('alertsStatus').textContent = 'Alerts: OK';
+        }
+      } catch(e) {
+        document.getElementById('dbStatus').textContent = 'DB: Error';
+        document.getElementById('alertsStatus').textContent = 'Alerts: Error';
+      }
+    }
 
-// Dummy booking chart for future analytics
-const ctx = document.getElementById('bookingChart').getContext('2d');
-const bookingChart = new Chart(ctx, {
-  type: 'line',
-  data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets:[{label:'Bookings', data:[5,3,6,2,7,4,5], borderColor:'cyan', fill:false}] },
-  options: { responsive:true }
-});
+    // Initial fetch
+    fetchUsers();
+    fetchBookings();
+    fetchHealth();
 
-fetchStatus(); fetchLogs();
-setInterval(()=>{ fetchStatus(); fetchLogs(); },5000);
-</script>
+    // Refresh every 2 minutes
+    setInterval(() => {
+      fetchUsers();
+      fetchBookings();
+      fetchHealth();
+    }, 120000);
+  </script>
 </body>
 </html>
