@@ -129,18 +129,20 @@ const logToFile = async (msg) => {
   fs.appendFileSync(logFilePath, \`[\${timestamp}] \${msg}\n\`);
 };
 
-try {
-  await logInitialization();
-  console.log('\033[1;32m✅ Initialization report logged\033[0m');
-  await logToFile('Initialization report logged ✅');
-} catch (err) {
-  console.error('\033[1;31m❌ Initialization report failed:\033[0m', err.message);
-  await logToFile('Initialization report failed ❌: ' + err.message);
-}
+(async () => {
+  try {
+    await logInitialization();
+    console.log('\033[1;32m✅ Initialization report logged\033[0m');
+    await logToFile('Initialization report logged ✅');
+  } catch (err) {
+    console.error('\033[1;31m❌ Initialization report failed:\033[0m', err.message);
+    await logToFile('Initialization report failed ❌: ' + err.message);
+  }
+})();
 "
 
 # --------------------
-# 6️⃣ Start backend server with self-monitoring
+# 6️⃣ Start backend server with self-monitoring (async IIFE fix)
 # --------------------
 echo -e "\033[1;34m🌐 Starting backend server with periodic monitoring...\033[0m"
 node -e "
@@ -166,16 +168,18 @@ const logToFile = async (msg) => {
   fs.appendFileSync(logFilePath, \`[\${timestamp}] \${msg}\n\`);
 };
 
-const startServer = async () => {
+(async () => {
   try {
     await connectDB();
     console.log('\033[1;32m🚀 Server connected to MongoDB\033[0m');
+
     await logInitialization();
     console.log('\033[1;32m✅ Initialization report logged\033[0m');
     await logToFile('Server startup and initialization report ✅');
 
     app.listen(PORT, () => console.log(\`🚀 Server running on port \${PORT}\`));
 
+    // Periodic monitoring every 5 minutes
     const intervalMs = 5 * 60 * 1000;
     setInterval(async () => {
       try {
@@ -199,9 +203,7 @@ const startServer = async () => {
     await sendSlackAlert('Backend failed to start:\n' + err.message);
     process.exit(1);
   }
-};
-
-startServer();
+})();
 "
 
 # --------------------
