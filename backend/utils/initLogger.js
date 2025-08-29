@@ -75,14 +75,36 @@ export const logInitialization = async () => {
     console.log("⚠️ Unable to list admins and mechanics:", err.message);
   }
 
-  // 7️⃣ Bookings summary
+  // 7️⃣ Bookings summary and mini-dashboard
   try {
     const totalBookings = await Booking.countDocuments();
     console.log(`\n📅 Bookings Summary:`);
     console.log(` - Total Bookings: ${totalBookings}`);
+
     if (totalBookings > 0) {
-      const recentBooking = await Booking.findOne().sort({ createdAt: -1 }).populate("customer", "name email");
-      console.log(` - Most Recent Booking: ${recentBooking.vehicleDetails} by ${recentBooking.customer.name} on ${recentBooking.date}`);
+      const recentBookings = await Booking.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .populate("customer", "name email");
+
+      console.log("\n🆕 Most Recent Bookings:");
+      recentBookings.forEach(b => {
+        console.log(` - ${b.vehicleDetails} | ${b.serviceType} | by ${b.customer.name} (${b.customer.email}) | on ${b.date}`);
+      });
+
+      const upcomingBookings = await Booking.find({ date: { $gte: new Date() } })
+        .sort({ date: 1 })
+        .limit(5)
+        .populate("customer", "name email");
+
+      console.log("\n📌 Upcoming Bookings:");
+      if (upcomingBookings.length === 0) {
+        console.log(" - None upcoming");
+      } else {
+        upcomingBookings.forEach(b => {
+          console.log(` - ${b.vehicleDetails} | ${b.serviceType} | by ${b.customer.name} (${b.customer.email}) | scheduled ${b.date}`);
+        });
+      }
     }
   } catch (err) {
     console.log("⚠️ Unable to fetch bookings summary:", err.message);
