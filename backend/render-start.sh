@@ -15,7 +15,7 @@ echo "✅ Node.js version $current_node_version OK"
 # --------------------
 # 2️⃣ Install dependencies
 # --------------------
-echo "📦 Installing dependencies..."
+cd backend || exit
 npm install
 
 # --------------------
@@ -39,7 +39,7 @@ EOL
 fi
 
 # --------------------
-# 4️⃣ Validate critical environment variables
+# 4️⃣ Check critical environment variables
 # --------------------
 required_vars=("PORT" "MONGO_URI" "JWT_SECRET" "EMAIL_HOST" "EMAIL_PORT" "EMAIL_USER" "EMAIL_PASS" "ALERT_EMAIL_RECIPIENT" "SLACK_WEBHOOK_URL" "REPORT_TOKEN")
 for var in "${required_vars[@]}"; do
@@ -69,7 +69,7 @@ echo "$(date) - Backend deploy started" >> logs/startup.log
 echo "✅ Logs folder ready"
 
 # --------------------
-# 7️⃣ Test MongoDB connection
+# 7️⃣ MongoDB connection check
 # --------------------
 echo "🧪 Testing MongoDB connection..."
 node -e "
@@ -87,7 +87,7 @@ connectDB()
 # --------------------
 # 8️⃣ Test alert system (email + Slack)
 # --------------------
-echo "📣 Testing alert system..."
+echo "📣 Testing alert system (email + Slack)..."
 node -e "
 import dotenv from 'dotenv';
 import { sendEmailAlert } from './utils/alertMailer.js';
@@ -98,12 +98,16 @@ dotenv.config();
   try {
     await sendEmailAlert('Backend Startup Test', 'This is a test alert for email notifications.');
     console.log('✅ Test email sent successfully');
-  } catch (err) { console.error('❌ Test email failed:', err.message); }
+  } catch (err) {
+    console.error('❌ Test email failed:', err.message);
+  }
 
   try {
     await sendSlackAlert('Backend Startup Test: This is a Slack test message.');
     console.log('✅ Test Slack message sent successfully');
-  } catch (err) { console.error('❌ Test Slack message failed:', err.message); }
+  } catch (err) {
+    console.error('❌ Test Slack message failed:', err.message);
+  }
 })();
 "
 
@@ -120,11 +124,18 @@ dotenv.config();
   try {
     const db = await mongoose.connect(process.env.MONGO_URI);
     const collections = await db.connection.db.listCollections().toArray();
+
+    if (!collections || collections.length === 0) {
+      console.error('❌ MongoDB has no collections!');
+      process.exit(1);
+    }
+
     console.log('✅ MongoDB connection OK, collections found:', collections.map(c => c.name).join(', '));
-    await mongoose.disconnect();
   } catch (err) {
     console.error('❌ Health check failed:', err.message);
     process.exit(1);
+  } finally {
+    await mongoose.disconnect();
   }
 })();
 "
@@ -142,4 +153,5 @@ logInitialization();
 # 1️⃣1️⃣ Start backend server (Render-compatible)
 # --------------------
 echo "🌐 Starting backend server..."
+# Must bind to process.env.PORT and run in foreground
 node server.js
