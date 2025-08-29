@@ -2,127 +2,52 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pro Backend Dashboard</title>
+<title>Mobile Mechanic Pro Dashboard</title>
 <style>
-  body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; color: #333; }
-  h1 { color: #222; }
-  section { background: #fff; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-  pre { background: #eee; padding: 10px; overflow-x: auto; border-radius: 5px; }
-  button { padding: 8px 12px; margin-top: 5px; cursor: pointer; border-radius: 5px; border: none; background: #007BFF; color: #fff; }
-  button:hover { background: #0056b3; }
+body { font-family: Arial; background: #1e1e2f; color: #eee; margin:0; padding:0;}
+header { background:#111; padding:20px; text-align:center; font-size:24px;}
+section { padding:20px;}
+pre { background:#222; padding:10px; overflow-x:auto; max-height:300px;}
+.metric { margin:10px 0; font-size:18px;}
+.chart { width: 100%; max-width:600px; height:300px; margin:20px 0;}
 </style>
 </head>
 <body>
-
-<h1>🚀 Mobile Mechanic Backend Dashboard</h1>
-
+<header>Mobile Mechanic Pro Dashboard</header>
 <section>
-  <h2>MongoDB Collections</h2>
-  <pre id="collections">Loading...</pre>
+<div class="metric" id="status">Loading backend status...</div>
+<h3>Logs</h3>
+<pre id="logs">Fetching logs...</pre>
+<canvas id="bookingChart" class="chart"></canvas>
 </section>
-
-<section>
-  <h2>User Stats</h2>
-  <pre id="user-stats">Loading...</pre>
-</section>
-
-<section>
-  <h2>Booking Stats</h2>
-  <pre id="booking-stats">Loading...</pre>
-</section>
-
-<section>
-  <h2>Backend Logs</h2>
-  <pre id="logs">Loading...</pre>
-</section>
-
-<section>
-  <h2>Test Alerts</h2>
-  <button onclick="testEmail()">Send Test Email</button>
-  <button onclick="testSlack()">Send Test Slack</button>
-  <p id="alert-status"></p>
-</section>
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-const API_BASE = "http://localhost:5000"; // change if hosted elsewhere
-const API_KEY = "supersecrettoken123"; // match your .env REPORT_TOKEN
+const token = new URLSearchParams(window.location.search).get('token');
+if(!token){ document.body.innerHTML='<h1>Access Denied</h1>'; }
 
-async function fetchCollections() {
-  try {
-    const res = await fetch(`${API_BASE}/api/mongo/collections`, {
-      headers: { "x-api-key": API_KEY }
-    });
-    const data = await res.json();
-    document.getElementById("collections").textContent = JSON.stringify(data, null, 2);
-  } catch(e) {
-    document.getElementById("collections").textContent = "Error: " + e.message;
-  }
-}
-
-async function fetchUserStats() {
-  try {
-    const res = await fetch(`${API_BASE}/api/stats/users`, { headers: { "x-api-key": API_KEY } });
-    const data = await res.json();
-    document.getElementById("user-stats").textContent = JSON.stringify(data, null, 2);
-  } catch(e) {
-    document.getElementById("user-stats").textContent = "Error: " + e.message;
-  }
-}
-
-async function fetchBookingStats() {
-  try {
-    const res = await fetch(`${API_BASE}/api/stats/bookings`, { headers: { "x-api-key": API_KEY } });
-    const data = await res.json();
-    document.getElementById("booking-stats").textContent = JSON.stringify(data, null, 2);
-  } catch(e) {
-    document.getElementById("booking-stats").textContent = "Error: " + e.message;
-  }
+async function fetchStatus() {
+  const res = await fetch(`/api/dashboard/status?token=${token}`);
+  const data = await res.json();
+  document.getElementById('status').textContent =
+    `Backend: ${data.backend}, Node: ${data.nodeVersion}, Uptime: ${data.uptime}, Memory: ${data.memory}, CPU Load: ${data.cpuLoad.join(', ')}`;
 }
 
 async function fetchLogs() {
-  try {
-    const res = await fetch(`${API_BASE}/logs`, { headers: { "x-api-key": API_KEY } });
-    const text = await res.text();
-    document.getElementById("logs").textContent = text;
-  } catch(e) {
-    document.getElementById("logs").textContent = "Error: " + e.message;
-  }
+  const res = await fetch(`/api/dashboard/logs?token=${token}`);
+  const text = await res.text();
+  document.getElementById('logs').textContent = text;
 }
 
-async function testEmail() {
-  try {
-    const res = await fetch(`${API_BASE}/api/alerts/test-email`, { 
-      method: "POST", 
-      headers: { "x-api-key": API_KEY }
-    });
-    const data = await res.json();
-    document.getElementById("alert-status").textContent = data.message;
-  } catch(e) {
-    document.getElementById("alert-status").textContent = "Error: " + e.message;
-  }
-}
+// Dummy booking chart for future analytics
+const ctx = document.getElementById('bookingChart').getContext('2d');
+const bookingChart = new Chart(ctx, {
+  type: 'line',
+  data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets:[{label:'Bookings', data:[5,3,6,2,7,4,5], borderColor:'cyan', fill:false}] },
+  options: { responsive:true }
+});
 
-async function testSlack() {
-  try {
-    const res = await fetch(`${API_BASE}/api/alerts/test-slack`, { 
-      method: "POST", 
-      headers: { "x-api-key": API_KEY }
-    });
-    const data = await res.json();
-    document.getElementById("alert-status").textContent = data.message;
-  } catch(e) {
-    document.getElementById("alert-status").textContent = "Error: " + e.message;
-  }
-}
-
-// Auto-fetch everything on load
-fetchCollections();
-fetchUserStats();
-fetchBookingStats();
-fetchLogs();
-setInterval(fetchLogs, 5000); // refresh logs every 5s
+fetchStatus(); fetchLogs();
+setInterval(()=>{ fetchStatus(); fetchLogs(); },5000);
 </script>
-
 </body>
 </html>
