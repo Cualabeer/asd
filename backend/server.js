@@ -4,6 +4,11 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 
+// Import routes
+import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/users.js";
+import bookingRoutes from "./routes/bookings.js";
+
 dotenv.config();
 
 const app = express();
@@ -11,6 +16,11 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 // Root route
 app.get("/", (req, res) => {
