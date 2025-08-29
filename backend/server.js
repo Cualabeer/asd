@@ -4,7 +4,7 @@ import cors from "cors";
 
 import connectDB from "./config/db.js"; // Mongo connection
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js"; // error middleware
-import { logInitialization } from "./utils/initLogger.js";
+import { logInitialization, getLastInitReport } from "./utils/initLogger.js";
 
 // Routes
 import authRoutes from "./routes/auth.js";
@@ -29,9 +29,42 @@ app.use("/api/users", userRoutes);
 app.use("/api/bookings", bookingRoutes);
 
 // --------------------
-// Root Route
+// Root Route (with summary)
 // --------------------
-app.get("/", (req, res) => res.send("Backend API is running ✅"));
+app.get("/", async (req, res) => {
+  const report = getLastInitReport(); // grab last recorded report
+  const memoryUsage = process.memoryUsage();
+
+  const summary = {
+    db: report?.db?.status || "Unknown",
+    uptime: `${Math.floor(process.uptime())}s`,
+    memory: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`,
+    timestamp: report?.timestamp || new Date().toISOString(),
+  };
+
+  res.send(`
+    <h1>Backend API is running ✅</h1>
+    <h3>System Summary</h3>
+    <ul>
+      <li>Database: ${summary.db}</li>
+      <li>Uptime: ${summary.uptime}</li>
+      <li>Memory: ${summary.memory}</li>
+      <li>Last Report: ${summary.timestamp}</li>
+    </ul>
+    <p>For full details visit <a href="/report">/report</a></p>
+  `);
+});
+
+// --------------------
+// Debug Report Route
+// --------------------
+app.get("/report", (req, res) => {
+  const report = getLastInitReport();
+  if (!report) {
+    return res.status(404).json({ message: "No report available yet" });
+  }
+  res.json(report);
+});
 
 // --------------------
 // Error handling middleware
