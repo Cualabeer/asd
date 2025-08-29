@@ -29,17 +29,28 @@ app.use("/api/users", userRoutes);
 app.use("/api/bookings", bookingRoutes);
 
 // --------------------
-// Root Route (with summary)
+// Middleware to check API key
 // --------------------
-app.get("/", async (req, res) => {
-  const report = getLastInitReport(); // grab last recorded report
+const checkToken = (req, res, next) => {
+  const token = req.query.token;
+  if (token !== process.env.REPORT_TOKEN) {
+    return res.status(403).send("❌ Unauthorized: Invalid token");
+  }
+  next();
+};
+
+// --------------------
+// Root route with summary + last report timestamp
+// --------------------
+app.get("/", checkToken, async (req, res) => {
+  const report = getLastInitReport();
   const memoryUsage = process.memoryUsage();
 
   const summary = {
     db: report?.db?.status || "Unknown",
     uptime: `${Math.floor(process.uptime())}s`,
     memory: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`,
-    timestamp: report?.timestamp || new Date().toISOString(),
+    lastReport: report?.timestamp || "No report yet"
   };
 
   res.send(`
@@ -49,21 +60,25 @@ app.get("/", async (req, res) => {
       <li>Database: ${summary.db}</li>
       <li>Uptime: ${summary.uptime}</li>
       <li>Memory: ${summary.memory}</li>
-      <li>Last Report: ${summary.timestamp}</li>
+      <li>Last Report: ${summary.lastReport}</li>
     </ul>
-    <p>For full details visit <a href="/report">/report</a></p>
+    <p>For full details visit /report (use your token manually)</p>
   `);
 });
 
 // --------------------
-// Debug Report Route
+// Full JSON report route
 // --------------------
-app.get("/report", (req, res) => {
+app.get("/report", checkToken, (req, res) => {
   const report = getLastInitReport();
-  if (!report) {
-    return res.status(404).json({ message: "No report available yet" });
-  }
-  res.json(report);
+  if (!report) return res.status(404).json({ message: "No report available yet" });
+
+  const response = {
+    lastReport: report.timestamp,
+    report
+  };
+
+  res.json(response);
 });
 
 // --------------------
